@@ -204,3 +204,23 @@ function agoSample(cfg) {
              tr(cfg, "daysAgo", { n: count(cfg, "daysN", 28) })]
   return all.reduce(function(a, b) { return b.length > a.length ? b : a })
 }
+
+// The header's big figure: what needs doing, or a check mark when nothing does.
+function headline(s) {
+  var m = mode(s)
+  if (m === "ok") return "✓"
+  if (m === "error" || m === "loading") return "—"
+  return barLabel(s).replace(/↑/g, "↑ ").replace(/↓/g, "↓ ")
+}
+
+// The header's chip: the next step in one word.
+function chipText(cfg, s) {
+  var key = { ok: "chipOk", up: "chipSend", down: "chipApply", both: "chipBoth", error: "chipError" }[mode(s)]
+  return key ? tr(cfg, key) : ""
+}
+
+// "~/x" -> HOME + "/x", for opening a file.
+function expandHome(path, home) {
+  path = String(path)
+  return path === "~" || path.indexOf("~/") === 0 ? home + path.slice(1) : path
+}

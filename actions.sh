@@ -5,6 +5,9 @@
 #   actions.sh diff             what is not saved here, then what came from the repo
 #   actions.sh diff local PATH  one file: the edit made on this machine
 #   actions.sh diff pending PATH  one file: what apply would write
+#   actions.sh compare PATH     the repo's version beside the file on disk, in
+#                               Meld, VSCodium or VS Code (no terminal); a
+#                               coloured diff in a terminal when none is installed
 # DOTFILES_LANG=ru switches the messages to Russian. CHEZMOI=path picks the binary.
 set -uo pipefail
 
@@ -69,8 +72,8 @@ apply() {
 # chezmoi diff shows what apply would do, so an edit made here reads reversed.
 diff_view() {
   case "${1:-}" in
-    local)   "$cz" diff --no-pager --reverse -- "${2/#\~/$HOME}" ;;
-    pending) "$cz" diff --no-pager -- "${2/#\~/$HOME}" ;;
+    local)   "$cz" --color=true diff --no-pager --reverse -- "${2/#\~/$HOME}" ;;
+    pending) "$cz" --color=true diff --no-pager -- "${2/#\~/$HOME}" ;;
     *)
       # status column 1 = edited here, column 1 blank = only the repo changed it
       local here=() theirs=()
@@ -78,10 +81,10 @@ diff_view() {
         if [[ ${line:0:1} != " " ]]; then here+=("$HOME/${line:3}"); else theirs+=("$HOME/${line:3}"); fi
       done < <("$cz" status --exclude=externals,scripts)
       say "=== Not saved on this machine ===" "=== Не сохранено на этом компе ==="
-      ((${#here[@]})) && "$cz" diff --no-pager --reverse -- "${here[@]}"
+      ((${#here[@]})) && "$cz" --color=true diff --no-pager --reverse -- "${here[@]}"
       if ((${#theirs[@]})); then
         say "=== In the repo, not applied ===" "=== Есть в репо, не применено ==="
-        "$cz" diff --no-pager -- "${theirs[@]}"
+        "$cz" --color=true diff --no-pager -- "${theirs[@]}"
       fi
       if g rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1 && (($(g rev-list --count 'HEAD..@{u}'))); then
         say "=== Came from the repo, not applied ===" "=== Пришло из репо, не применено ==="
@@ -90,9 +93,21 @@ diff_view() {
   esac
 }
 
+# The repo's version of one file beside the file itself, in a real diff window.
+compare() {
+  local file="${1/#\~/$HOME}" tmp repo tool
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/dotfiles-XXXXXX") || exit 1
+  repo="$tmp/$(basename "$file") (repo)"
+  "$cz" cat -- "$file" > "$repo" 2>/dev/null || : > "$repo"
+  if tool=$(command -v meld); then exec "$tool" "$repo" "$file"; fi
+  if tool=$(command -v codium || command -v code); then exec "$tool" --new-window --diff "$repo" "$file"; fi
+  exec omarchy-launch-floating-terminal-with-presentation "DOTFILES_LANG=${DOTFILES_LANG:-} $(printf '%q ' "$0" diff local "$1")"
+}
+
 case "${1:-}" in
   save) save ;;
+  compare) compare "${2:-}" ;;
   apply) apply ;;
   diff) shift; diff_view "$@" | less -R ;;
-  *) echo "usage: actions.sh save | apply | diff [local|pending PATH]" >&2; exit 2 ;;
+  *) echo "usage: actions.sh save | apply | diff [local|pending PATH] | compare PATH" >&2; exit 2 ;;
 esac

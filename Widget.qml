@@ -47,7 +47,6 @@ Panel {
 
   readonly property string mode: Model.mode(info)
   readonly property string next: Model.recommended(info)
-  readonly property color stateColor: skin.levelText(kitLevel)
 
   function tr(key, params) { return Model.tr(cfg, key, params) }
 
@@ -67,7 +66,6 @@ Panel {
   // ok -> the theme's green, something to do -> its yellow, an error -> red.
   readonly property string kitLevel: mode === "error" ? "bad" : mode === "ok" || mode === "loading" ? "good" : "warn"
 
-  TextMetrics { id: kindMetrics; font.family: skin.fontFamily; font.pixelSize: skin.small; text: root.tr("kindModified") + "  " }
   TextMetrics { id: filesMetrics; font.family: skin.fontFamily; font.pixelSize: skin.small; text: Model.filesSample(root.cfg, root.info.history.concat(root.info.incoming)) + "  " }
   TextMetrics { id: agoMetrics; font.family: skin.fontFamily; font.pixelSize: skin.small; text: Model.agoSample(root.cfg) }
 
@@ -113,11 +111,6 @@ Panel {
   function runNext() {
     if (next !== "") runAction([next])
     else refresh(true)
-  }
-
-  function showFile(row, pending) {
-    if (row.kind === "new") return
-    runAction(["diff", pending ? "pending" : "local", row.path])
   }
 
   IpcHandler {
@@ -207,6 +200,22 @@ Panel {
     }
   }
 
+  // The version for the signature, from the manifest so it never drifts.
+  FileView { id: manifestFile; path: root.localPath(Qt.resolvedUrl("manifest.json")); blockLoading: true }
+  readonly property string version: { try { return JSON.parse(manifestFile.text()).version || "" } catch (e) { return "" } }
+
+  // Opening a file is the system's business: xdg-open picks the app, as a file manager would.
+  function openFile(row) {
+    close()
+    if (bar) bar.run("xdg-open " + Model.shellQuote(Model.expandHome(row.path, Quickshell.env("HOME"))))
+  }
+
+  function compareFile(row) {
+    close()
+    if (bar) bar.run(Model.command(actions, ["compare", row.path], cfg.lang, chezmoi))
+    watchUntil = Date.now() + 180000
+  }
+
   KeyboardPanel {
     id: panel
     anchorItem: button
@@ -230,7 +239,6 @@ Panel {
         else if (t === "d") root.runAction(["diff"])
       }
 
-      // A long file list or large text can outgrow the screen: it scrolls.
       Flickable {
         id: scroller
         anchors.fill: parent
@@ -245,94 +253,30 @@ Panel {
           width: scroller.width
           spacing: Style.space(12)
 
-          // ---------- Hero: state icon · title, state and what to do ----------
-          Item {
+          Kit.Header {
             width: parent.width
-            implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight)
-
-            Rectangle {
-              id: heroIcon
-              width: Math.round(skin.hero * 1.7)
-              height: width
-              radius: skin.radius
-              color: Util.alpha(skin.levelFill(root.kitLevel), 0.16)
-              anchors.left: parent.left
-              anchors.verticalCenter: parent.verticalCenter
-              Behavior on color { ColorAnimation { duration: skin.fade } }
-
-              Text {
-                anchors.centerIn: parent
-                textFormat: Text.PlainText
-                text: Model.icon(root.info)
-                color: root.stateColor
-                font.family: skin.fontFamily
-                font.pixelSize: skin.hero
-              }
-            }
-
-            Column {
-              id: heroLabels
-              anchors.left: heroIcon.right
-              anchors.leftMargin: Style.space(14)
-              anchors.right: parent.right
-              anchors.verticalCenter: parent.verticalCenter
-              spacing: Style.space(2)
-
-              Text {
-                textFormat: Text.PlainText
-                text: Model.stateText(root.cfg, root.info)
-                color: skin.ink
-                font.family: skin.fontFamily
-                font.pixelSize: skin.strong
-                font.bold: true
-                wrapMode: Text.WordWrap
-                width: parent.width
-              }
-
-              Text {
-                visible: text !== ""
-                textFormat: Text.PlainText
-                text: Model.hint(root.cfg, root.info)
-                color: skin.dim
-                font.family: skin.fontFamily
-                font.pixelSize: skin.small
-                wrapMode: Text.WordWrap
-                width: parent.width
-              }
-            }
+            look: skin
+            glyph: Model.icon(root.info)
+            name: root.tr("title")
+            value: Model.headline(root.info)
+            say: Model.stateText(root.cfg, root.info)
+            chip: Model.chipText(root.cfg, root.info)
+            tone: skin.levelFill(root.kitLevel)
+            toneText: skin.levelText(root.kitLevel)
           }
 
           // ---------- Not sent: files edited or new here ----------
-          Kit.Card {
+          Kit.Section {
             id: localList
-            look: skin
             visible: root.info.local.length > 0
             width: parent.width
-            spacing: Style.space(3)
-
-            PanelSectionHeader {
-              text: root.tr("sectionLocal").toUpperCase()
-              foreground: skin.ink
-              fontFamily: skin.fontFamily
-              fontSize: skin.small
-              color: skin.dim
-            }
+            look: skin
+            caption: root.tr("sectionLocal")
+            hint: root.tr("openHint")
 
             Repeater {
               model: Model.visibleRows(root.info.local, root.allLocal)
-
-              delegate: Kit.StatRow {
-                required property var modelData
-                width: localList.width - localList.padding * 2
-                look: skin
-                name: modelData.path
-                cells: [Model.kindLabel(root.cfg, modelData.kind)]
-                cellWidths: [kindMetrics.width]
-                dimCells: [true]
-                share: 0
-                clickable: modelData.kind !== "new"
-                onClicked: root.showFile(modelData, false)
-              }
+              delegate: FileRow { required property var modelData; row: modelData; pending: false; width: localList.width - localList.padding * 2 }
             }
 
             Kit.MoreButton {
@@ -340,13 +284,6 @@ Panel {
               text: Model.moreLabel(root.cfg, root.info.local, root.allLocal)
               onClicked: root.allLocal = !root.allLocal
             }
-          }
-
-          Kit.Card {
-            visible: root.info.uncommitted > 0 || root.info.ahead > 0
-            width: parent.width
-            look: skin
-            spacing: Style.spacing.labelGap
 
             Kit.InfoPair {
               look: skin
@@ -362,25 +299,37 @@ Panel {
             }
           }
 
-          // ---------- From the repo: commits not pulled ----------
-          Kit.Card {
-            id: incomingList
+          // Commits made here but not pushed, with no edited file left to list.
+          Kit.Section {
+            visible: root.info.local.length === 0 && (root.info.uncommitted > 0 || root.info.ahead > 0)
+            width: parent.width
             look: skin
+            caption: root.tr("sectionLocal")
+
+            Kit.InfoPair {
+              look: skin
+              visible: root.info.uncommitted > 0
+              label: root.tr("rowUncommitted")
+              value: Model.count(root.cfg, "filesN", root.info.uncommitted)
+            }
+            Kit.InfoPair {
+              look: skin
+              visible: root.info.ahead > 0
+              label: root.tr("rowAhead")
+              value: Model.count(root.cfg, "savesN", root.info.ahead)
+            }
+          }
+
+          // ---------- From the repo ----------
+          Kit.Section {
+            id: incomingList
             visible: root.info.incoming.length > 0
             width: parent.width
-            spacing: Style.space(3)
-
-            PanelSectionHeader {
-              text: root.tr("sectionIncoming").toUpperCase()
-              foreground: skin.ink
-              fontFamily: skin.fontFamily
-              fontSize: skin.small
-              color: skin.dim
-            }
+            look: skin
+            caption: root.tr("sectionIncoming")
 
             Repeater {
               model: root.info.incoming
-
               delegate: Kit.StatRow {
                 required property var modelData
                 width: incomingList.width - incomingList.padding * 2
@@ -394,37 +343,17 @@ Panel {
             }
           }
 
-          // ---------- Pulled, not applied ----------
-          Kit.Card {
+          Kit.Section {
             id: pendingList
-            look: skin
             visible: root.info.pending.length > 0
             width: parent.width
-            spacing: Style.space(3)
-
-            PanelSectionHeader {
-              text: root.tr("sectionPending").toUpperCase()
-              foreground: skin.ink
-              fontFamily: skin.fontFamily
-              fontSize: skin.small
-              color: skin.dim
-            }
+            look: skin
+            caption: root.tr("sectionPending")
+            hint: root.tr("openHint")
 
             Repeater {
               model: Model.visibleRows(root.info.pending, root.allPending)
-
-              delegate: Kit.StatRow {
-                required property var modelData
-                width: pendingList.width - pendingList.padding * 2
-                look: skin
-                name: modelData.path
-                cells: [Model.kindLabel(root.cfg, modelData.kind)]
-                cellWidths: [kindMetrics.width]
-                dimCells: [true]
-                share: 0
-                clickable: true
-                onClicked: root.showFile(modelData, true)
-              }
+              delegate: FileRow { required property var modelData; row: modelData; pending: true; width: pendingList.width - pendingList.padding * 2 }
             }
 
             Kit.MoreButton {
@@ -432,24 +361,23 @@ Panel {
               text: Model.moreLabel(root.cfg, root.info.pending, root.allPending)
               onClicked: root.allPending = !root.allPending
             }
+
+            Kit.InfoPair {
+              look: skin
+              visible: root.info.scripts > 0
+              label: root.tr("rowScripts")
+              value: String(root.info.scripts)
+            }
           }
 
           // ---------- Last saves ----------
-
-          Kit.Card {
+          Kit.Section {
             id: historyList
-            look: skin
             visible: root.info.ok
             width: parent.width
-            spacing: Style.space(3)
-
-            PanelSectionHeader {
-              text: root.tr("sectionHistory").toUpperCase()
-              foreground: skin.ink
-              fontFamily: skin.fontFamily
-              fontSize: skin.small
-              color: skin.dim
-            }
+            look: skin
+            caption: root.tr("sectionHistory")
+            hint: root.info.remote || root.tr("rowRepoNone")
 
             Text {
               visible: root.info.history.length === 0
@@ -462,7 +390,6 @@ Panel {
 
             Repeater {
               model: root.info.history
-
               delegate: Kit.StatRow {
                 required property var modelData
                 width: historyList.width - historyList.padding * 2
@@ -476,89 +403,109 @@ Panel {
             }
           }
 
-          Kit.Card {
-            visible: root.info.ok
+          // ---------- Actions: the next step is the filled one ----------
+          Kit.ActionRow {
             width: parent.width
-            look: skin
-            spacing: Style.spacing.labelGap
 
-            Kit.InfoPair {
+            Kit.ActionButton {
               look: skin
-              label: root.tr("rowRepo")
-              value: root.info.remote || root.tr("rowRepoNone")
-            }
-            Kit.InfoPair {
-              look: skin
-              label: root.tr("rowChecked")
-              value: Model.checkedText(root.cfg, root.info, root.now)
-              valueColor: root.info.fetch.error ? skin.urgentText : skin.ink
-            }
-            Kit.InfoPair {
-              look: skin
-              visible: root.info.scripts > 0
-              label: root.tr("rowScripts")
-              value: String(root.info.scripts)
-            }
-          }
-
-          // ---------- Actions ----------
-
-          Row {
-            id: actionRow
-            width: parent.width
-            spacing: Style.space(6)
-
-            readonly property real cellWidth: (width - spacing * 2) / 3
-            readonly property real buttonHeight: Math.max(sendButton.implicitHeight, applyButton.implicitHeight, diffButton.implicitHeight)
-
-            Button {
-              id: sendButton
-              width: actionRow.cellWidth
-              height: actionRow.buttonHeight
               iconText: "\u{F0167}"
-              iconSize: skin.strong
               text: root.tr("send")
-              tooltipText: root.tr("sendTip")
-              selected: root.next === "save"
-              fontSize: skin.small
-              foreground: skin.ink
-              fontFamily: skin.fontFamily
-              bordered: true
+              primary: root.next === "save"
               onClicked: root.runAction(["save"])
             }
-
-            Button {
-              id: applyButton
-              width: actionRow.cellWidth
-              height: actionRow.buttonHeight
+            Kit.ActionButton {
+              look: skin
               iconText: "\u{F0162}"
-              iconSize: skin.strong
               text: root.tr("apply")
-              tooltipText: root.tr("applyTip")
-              selected: root.next === "apply"
-              fontSize: skin.small
-              foreground: skin.ink
-              fontFamily: skin.fontFamily
-              bordered: true
+              primary: root.next === "apply"
               onClicked: root.runAction(["apply"])
             }
-
-            Button {
-              id: diffButton
-              width: actionRow.cellWidth
-              height: actionRow.buttonHeight
+            Kit.ActionButton {
+              look: skin
               iconText: "\u{F0219}"
-              iconSize: skin.strong
               text: root.tr("diff")
-              tooltipText: root.tr("diffTip")
-              fontSize: skin.small
-              foreground: skin.ink
-              fontFamily: skin.fontFamily
-              bordered: true
               onClicked: root.runAction(["diff"])
             }
           }
+
+          Kit.Signature {
+            width: parent.width
+            look: skin
+            widget: "dotfiles"
+            extra: root.info.ok ? root.tr("rowChecked").toLowerCase() + " " + Model.checkedText(root.cfg, root.info, root.now) : ""
+            version: root.version
+          }
         }
+      }
+    }
+  }
+
+  // One file: click opens it in its app; on hover, Compare puts the repo's
+  // version beside it. A new file has nothing in the repo to compare with.
+  component FileRow: Item {
+    id: fileRow
+    property var row: ({})
+    property bool pending: false
+    implicitHeight: Math.max(pathText.implicitHeight, compareButton.implicitHeight) + Style.space(8)
+
+    HoverHandler { id: fileHover }
+
+    Rectangle {
+      anchors.fill: parent
+      radius: Math.min(6, skin.radius)
+      color: Util.alpha(skin.ink, fileHover.hovered ? 0.07 : 0)
+    }
+
+    Text {
+      id: pathText
+      anchors.left: parent.left
+      anchors.leftMargin: Style.space(6)
+      anchors.right: tail.left
+      anchors.rightMargin: Style.space(8)
+      anchors.verticalCenter: parent.verticalCenter
+      textFormat: Text.PlainText
+      text: fileRow.row.path || ""
+      color: skin.ink
+      font.family: skin.fontFamily
+      font.pixelSize: skin.small
+      elide: Text.ElideMiddle
+    }
+
+    MouseArea {
+      anchors.left: parent.left
+      anchors.right: tail.left
+      anchors.top: parent.top
+      anchors.bottom: parent.bottom
+      cursorShape: Qt.PointingHandCursor
+      onClicked: root.openFile(fileRow.row)
+    }
+
+    Row {
+      id: tail
+      anchors.right: parent.right
+      anchors.rightMargin: Style.space(4)
+      anchors.verticalCenter: parent.verticalCenter
+      spacing: Style.space(6)
+
+      Text {
+        visible: !compareButton.visible
+        anchors.verticalCenter: parent.verticalCenter
+        textFormat: Text.PlainText
+        text: Model.kindLabel(root.cfg, fileRow.row.kind)
+        color: skin.dim
+        font.family: skin.fontFamily
+        font.pixelSize: skin.small
+      }
+
+      Kit.ActionButton {
+        id: compareButton
+        visible: fileHover.hovered && fileRow.row.kind !== "new"
+        look: skin
+        compact: true
+        iconText: "\u{F0219}"
+        text: root.tr("compare")
+        onClicked: root.compareFile(fileRow.row)
       }
     }
   }

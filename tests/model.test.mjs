@@ -118,3 +118,13 @@ test("column samples are the widest texts", () => {
   assert.equal(M.agoSample(ru), "28 дней назад")
   assert.equal(M.agoSample(en), "28 days ago")
 })
+
+test("header figure, chip and home paths", () => {
+  assert.equal(M.headline(ok({})), "✓")
+  assert.equal(M.headline(ok({ ahead: 2, behind: 1 })), "↑ 2 ↓ 1")
+  assert.equal(M.headline(M.failure("busy")), "—")
+  assert.equal(M.chipText(ru, ok({ behind: 1 })), "применить")
+  assert.equal(M.chipText(en, ok({})), "saved")
+  assert.equal(M.expandHome("~/.config/x", "/home/me"), "/home/me/.config/x")
+  assert.equal(M.expandHome("/etc/x", "/home/me"), "/etc/x")
+})
