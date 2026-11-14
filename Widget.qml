@@ -22,7 +22,7 @@ Panel {
   ipcTarget: "ismoil.dotfiles"
   manageIpc: false
 
-  readonly property int pollSeconds: Math.max(10, Number(setting("interval", 30)) || 30)
+  readonly property int pollSeconds: Math.max(30, Number(setting("interval", 120)) || 120)
   readonly property int fetchMinutes: Math.max(1, Number(setting("fetchMinutes", 10)) || 10)
   readonly property string chezmoi: String(setting("chezmoi", "")).trim()
   readonly property var cfg: Model.config({ language: setting("language", "auto"), locale: Qt.locale().name })
@@ -47,7 +47,7 @@ Panel {
 
   readonly property string mode: Model.mode(info)
   readonly property string next: Model.recommended(info)
-  readonly property color stateColor: mode === "ok" || mode === "loading" ? skin.dim : mode === "error" ? skin.urgentText : skin.accentText
+  readonly property color stateColor: skin.levelText(kitLevel)
 
   function tr(key, params) { return Model.tr(cfg, key, params) }
 
@@ -56,12 +56,16 @@ Panel {
     return decodeURIComponent(String(url).replace(/^file:\/\//, ""))
   }
 
+  Kit.ThemePalette { id: themePalette }
   Kit.Look {
     id: skin
     textSize: String(root.setting("textSize", "Normal"))
     animations: root.setting("animations", true) !== false
     fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+    themeColors: themePalette.colors
   }
+  // ok -> the theme's green, something to do -> its yellow, an error -> red.
+  readonly property string kitLevel: mode === "error" ? "bad" : mode === "ok" || mode === "loading" ? "good" : "warn"
 
   TextMetrics { id: kindMetrics; font.family: skin.fontFamily; font.pixelSize: skin.small; text: root.tr("kindModified") + "  " }
   TextMetrics { id: filesMetrics; font.family: skin.fontFamily; font.pixelSize: skin.small; text: Model.filesSample(root.cfg, root.info.history.concat(root.info.incoming)) + "  " }
@@ -246,15 +250,24 @@ Panel {
             width: parent.width
             implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight)
 
-            Text {
+            Rectangle {
               id: heroIcon
-              textFormat: Text.PlainText
-              text: Model.icon(root.info)
-              color: root.stateColor
-              font.family: skin.fontFamily
-              font.pixelSize: skin.heroLarge
+              width: Math.round(skin.hero * 1.7)
+              height: width
+              radius: skin.radius
+              color: Util.alpha(skin.levelFill(root.kitLevel), 0.16)
               anchors.left: parent.left
               anchors.verticalCenter: parent.verticalCenter
+              Behavior on color { ColorAnimation { duration: skin.fade } }
+
+              Text {
+                anchors.centerIn: parent
+                textFormat: Text.PlainText
+                text: Model.icon(root.info)
+                color: root.stateColor
+                font.family: skin.fontFamily
+                font.pixelSize: skin.hero
+              }
             }
 
             Column {
@@ -290,8 +303,9 @@ Panel {
           }
 
           // ---------- Not sent: files edited or new here ----------
-          Column {
+          Kit.Card {
             id: localList
+            look: skin
             visible: root.info.local.length > 0
             width: parent.width
             spacing: Style.space(3)
@@ -309,7 +323,7 @@ Panel {
 
               delegate: Kit.StatRow {
                 required property var modelData
-                width: localList.width
+                width: localList.width - localList.padding * 2
                 look: skin
                 name: modelData.path
                 cells: [Model.kindLabel(root.cfg, modelData.kind)]
@@ -328,9 +342,10 @@ Panel {
             }
           }
 
-          Column {
+          Kit.Card {
             visible: root.info.uncommitted > 0 || root.info.ahead > 0
             width: parent.width
+            look: skin
             spacing: Style.spacing.labelGap
 
             Kit.InfoPair {
@@ -348,8 +363,9 @@ Panel {
           }
 
           // ---------- From the repo: commits not pulled ----------
-          Column {
+          Kit.Card {
             id: incomingList
+            look: skin
             visible: root.info.incoming.length > 0
             width: parent.width
             spacing: Style.space(3)
@@ -367,7 +383,7 @@ Panel {
 
               delegate: Kit.StatRow {
                 required property var modelData
-                width: incomingList.width
+                width: incomingList.width - incomingList.padding * 2
                 look: skin
                 name: modelData.subject
                 cells: Model.commitCells(root.cfg, modelData, root.now)
@@ -379,8 +395,9 @@ Panel {
           }
 
           // ---------- Pulled, not applied ----------
-          Column {
+          Kit.Card {
             id: pendingList
+            look: skin
             visible: root.info.pending.length > 0
             width: parent.width
             spacing: Style.space(3)
@@ -398,7 +415,7 @@ Panel {
 
               delegate: Kit.StatRow {
                 required property var modelData
-                width: pendingList.width
+                width: pendingList.width - pendingList.padding * 2
                 look: skin
                 name: modelData.path
                 cells: [Model.kindLabel(root.cfg, modelData.kind)]
@@ -418,10 +435,10 @@ Panel {
           }
 
           // ---------- Last saves ----------
-          PanelSeparator { foreground: skin.line; visible: root.info.ok }
 
-          Column {
+          Kit.Card {
             id: historyList
+            look: skin
             visible: root.info.ok
             width: parent.width
             spacing: Style.space(3)
@@ -448,7 +465,7 @@ Panel {
 
               delegate: Kit.StatRow {
                 required property var modelData
-                width: historyList.width
+                width: historyList.width - historyList.padding * 2
                 look: skin
                 name: modelData.subject
                 cells: Model.commitCells(root.cfg, modelData, root.now)
@@ -459,9 +476,10 @@ Panel {
             }
           }
 
-          Column {
+          Kit.Card {
             visible: root.info.ok
             width: parent.width
+            look: skin
             spacing: Style.spacing.labelGap
 
             Kit.InfoPair {
@@ -484,7 +502,6 @@ Panel {
           }
 
           // ---------- Actions ----------
-          PanelSeparator { foreground: skin.line }
 
           Row {
             id: actionRow

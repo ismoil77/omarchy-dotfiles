@@ -66,7 +66,7 @@ Send adds those new files with `chezmoi add`, which still refuses files that loo
 | Setting | Default | |
 |---|---|---|
 | `fetchMinutes` | 10 | how often `git fetch` asks the repo; opening the popup asks too |
-| `interval` | 30 | how often (seconds) `chezmoi status` checks this machine; no network |
+| `interval` | 120 | how often (seconds, at least 30) `chezmoi status` checks this machine; no network |
 | `language` | auto | `en`, `ru`, or the system locale |
 | `textSize` | Normal | Normal, Large, Extra large |
 | `animations` | true | |

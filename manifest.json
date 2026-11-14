@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "ismoil.dotfiles",
   "name": "Dotfiles",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "ismoil",
   "license": "MIT",
   "description": "chezmoi sync in the bar: ↑ what this machine has not sent to the dotfiles repo, ↓ what the repo has that this machine has not applied. The popup lists the files and incoming saves, shows the last saves and when the repo was checked, and has Send, Apply and Changes buttons that run in a terminal. English and Russian, readable for low vision.",
@@ -19,7 +19,7 @@
     "allowMultiple": false,
     "defaultSection": "right",
     "defaults": {
-      "interval": 30,
+      "interval": 120,
       "fetchMinutes": 10,
       "language": "auto",
       "textSize": "Normal",
@@ -36,7 +36,7 @@
       {
         "key": "interval",
         "type": "number",
-        "label": "Check this machine every (seconds, at least 10)",
+        "label": "Check this machine every (seconds, at least 30)",
         "description": "How often chezmoi status looks for edits here. It does not use the network."
       },
       {
