@@ -18,9 +18,10 @@ Prints one JSON object and no human words (the widget owns the texts):
   fetch          {time, error}: when origin was last fetched (0 = never) and
                  why the last try failed ("" / offline / auth / failed)
 
-  state.py [--fetch] [--chezmoi PATH]
+  state.py [--fetch] [--fresh] [--chezmoi PATH]
 
---fetch asks origin first (git fetch, no prompts, 25 s at most).
+--fetch asks origin first (git fetch, no prompts, 25 s at most). Without it an
+answer up to 10 s old from another bar is reused; --fresh never reuses.
 """
 import json
 import os
@@ -29,6 +30,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import time
 
 HISTORY = 5
 INCOMING = 10
@@ -206,6 +208,42 @@ def read(cz, do_fetch):
     return state
 
 
+# Every bar (one per monitor) asks at about the same time: an answer this
+# fresh is shared. A fetch always reads anew.
+SHARED_FOR = 10
+
+
+def shared_path():
+    run = os.environ.get("XDG_RUNTIME_DIR")
+    return os.path.join(run, "ismoil-dotfiles", "state.json") if run else None
+
+
+def read_shared(now):
+    path = shared_path()
+    try:
+        if path and now - os.path.getmtime(path) < SHARED_FOR:
+            with open(path) as f:
+                return json.load(f)
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def write_shared(state):
+    path = shared_path()
+    if not path or not state.get("ok"):
+        return
+    try:
+        os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+        tmp = "%s.%d.tmp" % (path, os.getpid())
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            json.dump(state, f)
+        os.replace(tmp, path)
+    except OSError:
+        pass
+
+
 def main(argv):
     given = None
     if "--chezmoi" in argv:
@@ -215,8 +253,12 @@ def main(argv):
     if not cz:
         out = {"ok": False, "error": "nochezmoi"}
     else:
+        fetch = "--fetch" in argv
+        out = None if fetch or "--fresh" in argv else read_shared(time.time())
         try:
-            out = read(cz, "--fetch" in argv)
+            if out is None:
+                out = read(cz, fetch)
+                write_shared(out)
         except Busy:
             out = {"ok": False, "error": "busy"}
         except Exception:

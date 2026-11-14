@@ -80,6 +80,8 @@ Panel {
       command.push("--fetch")
       fetchedAt = Date.now()
     }
+    // Right after a button, the change must show at once, not another bar's answer.
+    if (Date.now() < watchUntil) command.push("--fresh")
     if (chezmoi !== "") command.push("--chezmoi", chezmoi)
     answered = false
     stateProc.command = command

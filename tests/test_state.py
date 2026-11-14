@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -72,6 +73,23 @@ class Parsers(unittest.TestCase):
     def test_ahead_behind(self):
         self.assertEqual(state.count_ahead_behind("2\t5\n"), (2, 5))
         self.assertEqual(state.count_ahead_behind(""), (0, 0))
+
+
+class Shared(unittest.TestCase):
+    def test_a_fresh_answer_is_shared_owner_only_and_expires(self):
+        with tempfile.TemporaryDirectory() as run, unittest.mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": run}):
+            self.assertIsNone(state.read_shared(1e12))
+            state.write_shared({"ok": True, "local": []})
+            path = state.shared_path()
+            self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
+            now = os.path.getmtime(path)
+            self.assertEqual(state.read_shared(now + 1), {"ok": True, "local": []})
+            self.assertIsNone(state.read_shared(now + state.SHARED_FOR + 1))
+
+    def test_errors_are_not_shared(self):
+        with tempfile.TemporaryDirectory() as run, unittest.mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": run}):
+            state.write_shared({"ok": False, "error": "busy"})
+            self.assertFalse(os.path.exists(state.shared_path()))
 
 
 @unittest.skipUnless(real_chezmoi() and shutil.which("git"), "chezmoi and git are needed")
