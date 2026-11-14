@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "id": "ismoil.dotfiles",
+  "name": "Dotfiles",
+  "version": "1.0.0",
+  "author": "ismoil",
+  "license": "MIT",
+  "description": "chezmoi sync in the bar: ↑ what this machine has not sent to the dotfiles repo, ↓ what the repo has that this machine has not applied. The popup lists the files and incoming saves, shows the last saves and when the repo was checked, and has Send, Apply and Changes buttons that run in a terminal. English and Russian, readable for low vision.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Widget.qml"
+  },
+  "barWidget": {
+    "displayName": "Dotfiles",
+    "description": "chezmoi: not sent, to apply, last saves",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "interval": 30,
+      "fetchMinutes": 10,
+      "language": "auto",
+      "textSize": "Normal",
+      "animations": true,
+      "chezmoi": ""
+    },
+    "schema": [
+      {
+        "key": "fetchMinutes",
+        "type": "number",
+        "label": "Check the repo every (minutes, at least 1)",
+        "description": "How often git fetch asks the remote for saves from other machines. Opening the popup checks too."
+      },
+      {
+        "key": "interval",
+        "type": "number",
+        "label": "Check this machine every (seconds, at least 10)",
+        "description": "How often chezmoi status looks for edits here. It does not use the network."
+      },
+      {
+        "key": "language",
+        "type": "enum",
+        "label": "Language",
+        "options": [
+          "auto",
+          "en",
+          "ru"
+        ],
+        "defaultValue": "auto",
+        "description": "auto follows the system locale (Russian or English)."
+      },
+      {
+        "key": "textSize",
+        "type": "enum",
+        "label": "Text size",
+        "options": [
+          "Normal",
+          "Large",
+          "Extra large"
+        ],
+        "defaultValue": "Normal",
+        "description": "Scales the popup text. Text is never smaller than 13 px."
+      },
+      {
+        "key": "animations",
+        "type": "boolean",
+        "label": "Animations",
+        "description": "Turn off to stop the popup from fading."
+      },
+      {
+        "key": "chezmoi",
+        "type": "path",
+        "label": "chezmoi binary",
+        "defaultValue": "",
+        "description": "Leave empty to find chezmoi on PATH."
+      }
+    ]
+  }
+}
