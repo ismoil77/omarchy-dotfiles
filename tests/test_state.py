@@ -234,6 +234,20 @@ class TwoMachines(unittest.TestCase):
         self.sh(a, ACTIONS, "save", ok=False)
         self.assertNotIn(".secret", self.managed(a))
 
+    def test_a_folder_others_can_write_to_is_never_added_from(self):
+        """Someone who can write to a folder on the way could swap it for a link
+        to a private folder between the check and chezmoi's read."""
+        a = self.a
+        self.setup_watched()
+        self.write(a, ".skills/shared/notes/SKILL.md", "hello\n")
+        os.chmod(os.path.join(a, ".skills/shared"), 0o777)
+        self.write(a, ".skills/mine/SKILL.md", "mine\n")
+        p = self.sh(a, ACTIONS, "save", ok=False)
+        managed = self.managed(a)
+        self.assertNotIn(".skills/shared/notes/SKILL.md", managed, p.stdout + p.stderr)
+        self.assertNotIn(".skills/shared", managed)
+        self.assertIn(".skills/mine/SKILL.md", managed)
+
     def test_a_new_file_with_a_secret_is_refused_and_nothing_is_pushed(self):
         a = self.a
         self.setup_watched()

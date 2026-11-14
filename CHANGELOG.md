@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.2
+
+- Security (marketplace review): a new file is added only when every folder from the home folder down
+  to it, and every folder inside a new folder, is the user's own, not writable by group or others, and
+  not a link — nobody else can swap one for a link between the check and chezmoi's read. Others are
+  skipped with a message.
+
 ## 1.1.1
 
 - Security (marketplace review): Send reads new file names NUL-separated, never adds a name with a

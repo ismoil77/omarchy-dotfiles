@@ -31,6 +31,32 @@ for p in (json.load(sys.stdin).get("dotfiles") or {}).get("watch") or []:
     if os.path.isdir(p): print(os.path.realpath(p), end="\0")'
 }
 
+# A folder only its owner can change: ours, not group/other-writable, not a link.
+private_dir() {
+  [[ -d $1 && ! -L $1 ]] || return 1
+  [[ $(stat -c %u -- "$1") == "$UID" ]] || return 1
+  (( (8#$(stat -c %a -- "$1") & 8#022) == 0 ))
+}
+
+# Every folder from the home folder down to `dir` is private_dir. Then nobody
+# else can swap one of them for a link between this check and chezmoi's read.
+private_chain() {
+  local d=$1
+  [[ $d == "$HOME" || $d == "$HOME"/* ]] || return 1
+  while :; do
+    private_dir "$d" || return 1
+    [[ $d == "$HOME" ]] && return 0
+    d=$(dirname -- "$d")
+  done
+}
+
+# A new folder is added with everything in it: no folder inside may be
+# someone else's or writable by others either (links are added as links).
+private_tree() {
+  [[ -d $1 && ! -L $1 ]] || return 0
+  [[ -z $(find "$1" -xdev -type d \( -perm /022 -o ! -uid "$UID" \) -print -quit 2>/dev/null) ]]
+}
+
 # New files under the watched folders, NUL-separated end to end: a newline in a
 # file name must not split it into other paths. Each one must still lie inside
 # a watched folder (its parent resolved, so a symlinked skill stays a symlink).
@@ -44,8 +70,11 @@ new_files() {
     for w in "${folders[@]}"; do
       [[ $parent == "$w" || $parent == "$w"/* ]] && { inside=1; break; }
     done
-    if [[ -n $inside ]]; then printf '%s\0' "$parent/$(basename -- "$f")"
-    else printf '  ! %q\n' "$f" >&2; fi
+    if [[ -z $inside ]]; then printf '  ! %q\n' "$f" >&2
+    elif ! private_chain "$parent" || ! private_tree "$parent/$(basename -- "$f")"; then
+      say "  ! $(printf %q "$f"): a folder on its way is not yours alone, skipped" \
+          "  ! $(printf %q "$f"): в папку на пути к нему может писать кто-то ещё, пропущено" >&2
+    else printf '%s\0' "$parent/$(basename -- "$f")"; fi
   done < <("$cz" unmanaged -0 --path-style=absolute -- "${folders[@]}")
 }
 

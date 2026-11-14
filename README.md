@@ -63,7 +63,8 @@ watch = ["~/.claude/skills", "~/.claude/commands"]
 Send adds those new files with `chezmoi add --secrets=error`, so a new file that looks like a secret
 is refused and nothing is sent (chezmoi itself only warns by default). Edits to files already in the
 repo are checked by gitleaks only. A name with a newline or another control character is never
-added: chezmoi 2.74 would split it into other paths. Every new path must lie inside a watched folder.
+added: chezmoi 2.74 would split it into other paths. Every new path must lie inside a watched folder, and every folder on its way (and inside it) must be
+yours alone — not writable by group or others, not a link — or it is skipped.
 
 ## Settings
 

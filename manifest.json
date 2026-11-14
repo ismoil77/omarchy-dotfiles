@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "ismoil.dotfiles",
   "name": "Dotfiles",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "author": "ismoil",
   "license": "MIT",
   "description": "chezmoi sync in the bar: ↑ what this machine has not sent to the dotfiles repo, ↓ what the repo has that this machine has not applied. The popup lists the files and incoming saves, shows the last saves and when the repo was checked, and has Send, Apply and Changes buttons that run in a terminal. English and Russian, readable for low vision.",
