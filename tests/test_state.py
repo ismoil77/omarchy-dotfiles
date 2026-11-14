@@ -155,6 +155,8 @@ class TwoMachines(unittest.TestCase):
     def sh(self, home, *cmd, ok=True):
         # From the home folder, as the widget's terminal runs.
         p = subprocess.run(list(cmd), env=self.env(home), capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=60, cwd=home)
+        # A script that "worked" but tripped over itself on the way out is not fine.
+        self.assertNotIn("unbound variable", p.stderr)
         if ok and p.returncode != 0:
             self.fail("%s failed: %s %s" % (cmd, p.stdout, p.stderr))
         return p

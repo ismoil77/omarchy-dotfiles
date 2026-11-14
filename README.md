@@ -8,7 +8,11 @@ Shows in the bar whether your [chezmoi](https://www.chezmoi.io) dotfiles are in 
 - **↓2**: the repo has 2 saves from another machine that are not applied here
 - nothing: all is saved
 
-![preview](preview.png)
+![Dotfiles](preview.png)
+
+| English | Русский |
+|---|---|
+| ![the popup](docs/preview-en.png) | ![окно](docs/preview-ru.png) |
 
 The popup lists the files, the incoming saves, the last saves and when the repo was checked. Three
 buttons run in a floating terminal, so chezmoi can still ask you things:

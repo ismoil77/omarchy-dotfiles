@@ -120,7 +120,7 @@ save() {
   if ((${#edited[@]})); then
     "$cz" re-add -- "${edited[@]}" || fail "chezmoi re-add failed, nothing was sent" "chezmoi re-add упал, ничего не отправлено"
   fi
-  local list
+  # Global, so the EXIT trap (which runs outside this function) can remove it.
   list=$(mktemp) || fail "no temporary file" "нет временного файла"
   trap 'rm -f "$list"' EXIT
   watched > "$list" || fail "chezmoi data failed, nothing was sent" "chezmoi data упал, ничего не отправлено"
