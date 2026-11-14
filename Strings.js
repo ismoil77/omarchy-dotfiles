@@ -17,8 +17,8 @@ var en = {
   stateDown: "From the repo: {down}",
   stateBoth: "Not sent: {up} · from the repo: {down}",
   hintOk: "Nothing to do",
-  hintUp: "Press Send to put them in the repo",
-  hintDown: "Press Apply to get them on this machine",
+  hintUp: "Press Send to save to the repo",
+  hintDown: "Press Apply to bring the repo's version here",
   hintBoth: "Send first, then Apply",
   tipBar: "Dotfiles: {state}",
 
@@ -79,8 +79,8 @@ var ru = {
   stateDown: "Из репо: {down}",
   stateBoth: "Не отправлено: {up} · из репо: {down}",
   hintOk: "Делать ничего не нужно",
-  hintUp: "Нажми «Отправить», чтобы они ушли в репо",
-  hintDown: "Нажми «Применить», чтобы забрать их на этот комп",
+  hintUp: "Нажми «Отправить», чтобы сохранить в репо",
+  hintDown: "Нажми «Применить», чтобы забрать версию из репо",
   hintBoth: "Сначала «Отправить», потом «Применить»",
   tipBar: "Dotfiles: {state}",
 
