@@ -15,7 +15,7 @@ buttons run in a floating terminal, so chezmoi can still ask you things:
 
 | Button | Key | What it runs |
 |---|---|---|
-| Send | `s` | `chezmoi re-add`, adds new files in watched folders, commits `sync from <host>`, rebases on the other machine's saves if needed, pushes |
+| Send | `s` | re-adds the files edited here (`chezmoi re-add -- <those files>`), adds new files in watched folders, commits `sync from <host>`, rebases on the other machine's saves if needed, pushes |
 | Apply | `a` | `chezmoi update` (pull and apply) |
 | Changes | `d` | your edits (`chezmoi diff --reverse`), then what came from the repo |
 
@@ -63,8 +63,9 @@ watch = ["~/.claude/skills", "~/.claude/commands"]
 Send adds those new files with `chezmoi add --secrets=error`, so a new file that looks like a secret
 is refused and nothing is sent (chezmoi itself only warns by default). Edits to files already in the
 repo are checked by gitleaks only. A name with a newline or another control character is never
-added: chezmoi 2.74 would split it into other paths. Every new path must lie inside a watched folder, and every folder on its way (and inside it) must be
-yours alone — not writable by group or others, not a link — or it is skipped.
+added: chezmoi 2.74 would split it into other paths. Every new path must lie inside a watched folder. For new and edited files alike, every folder on the
+way (and inside a new folder) must be yours alone — not writable by group or others, not a link — or
+the file is skipped with a message.
 
 ## Settings
 

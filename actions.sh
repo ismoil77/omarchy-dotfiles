@@ -80,7 +80,26 @@ new_files() {
 
 save() {
   say "Collecting changes…" "Собираю изменения…"
-  "$cz" re-add || fail "chezmoi re-add failed, nothing was sent" "chezmoi re-add упал, ничего не отправлено"
+  # A chezmoi `status` pre-hook can refresh generated files before a Send only.
+  export DOTFILES_SAVE=1
+  # Only the files edited here, and only through folders that are the user's
+  # alone: a bare `chezmoi re-add` would read every managed file, also one whose
+  # folder somebody else can swap for a link to a private file.
+  local line rel f edited=()
+  while IFS= read -r line; do
+    [[ ${line:0:1} == [MA] ]] || continue
+    rel=${line:3}; f="$HOME/$rel"
+    [[ -e $f || -L $f ]] || continue
+    if [[ $rel =~ [[:cntrl:]] ]] || ! private_chain "$(dirname -- "$f")" || ! private_tree "$f"; then
+      say "  ! $(printf %q "$rel"): a folder on its way is not yours alone, skipped" \
+          "  ! $(printf %q "$rel"): в папку на пути к нему может писать кто-то ещё, пропущено" >&2
+      continue
+    fi
+    edited+=("$f")
+  done < <("$cz" status --exclude=externals,scripts)
+  if ((${#edited[@]})); then
+    "$cz" re-add -- "${edited[@]}" || fail "chezmoi re-add failed, nothing was sent" "chezmoi re-add упал, ничего не отправлено"
+  fi
   mapfile -d '' -t folders < <(watched)
   if ((${#folders[@]})); then
     mapfile -d '' -t new < <(new_files "${folders[@]}")

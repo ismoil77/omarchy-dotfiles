@@ -248,6 +248,23 @@ class TwoMachines(unittest.TestCase):
         self.assertNotIn(".skills/shared", managed)
         self.assertIn(".skills/mine/SKILL.md", managed)
 
+    def test_an_edited_file_in_a_folder_others_can_write_to_is_not_re_added(self):
+        a = self.a
+        src = self.setup_watched()
+        self.write(a, ".cfg/shared/app.conf", "x=1\n")
+        self.write(a, ".cfg/mine.conf", "y=1\n")
+        self.sh(a, self.cz, "add", os.path.join(a, ".cfg/shared/app.conf"), os.path.join(a, ".cfg/mine.conf"))
+        self.sh(a, ACTIONS, "save")
+        self.write(a, ".cfg/shared/app.conf", "x=2\n")
+        self.write(a, ".cfg/mine.conf", "y=2\n")
+        os.chmod(os.path.join(a, ".cfg/shared"), 0o777)
+        p = self.sh(a, ACTIONS, "save")
+        self.assertIn("app.conf", p.stderr)
+        with open(os.path.join(src, "dot_cfg/shared/app.conf")) as f:
+            self.assertEqual(f.read(), "x=1\n", "the repo keeps the old content")
+        with open(os.path.join(src, "dot_cfg/mine.conf")) as f:
+            self.assertEqual(f.read(), "y=2\n")
+
     def test_a_new_file_with_a_secret_is_refused_and_nothing_is_pushed(self):
         a = self.a
         self.setup_watched()

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.3
+
+- Security (marketplace review): Send no longer runs a bare `chezmoi re-add`. It re-adds only the
+  files `chezmoi status` reports as edited here, and only when every folder from the home folder down
+  to the file is the user's own, not writable by group or others, and not a link — the same rule new
+  files already had. Others are skipped with a message.
+- `DOTFILES_SAVE=1` is set during a Send, so a chezmoi `status` pre-hook can refresh generated files then only.
+
 ## 1.1.2
 
 - Security (marketplace review): a new file is added only when every folder from the home folder down
