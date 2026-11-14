@@ -347,6 +347,27 @@ class TwoMachines(unittest.TestCase):
         self.assertEqual(self.sh(a, "git", "-C", self.remote, "rev-parse", "HEAD").stdout, before)
         self.assertNotIn(".skills/two/SKILL.md", self.managed(a))
 
+    def test_first_run_setup_connects_a_repo_without_applying_it(self):
+        a, b = self.a, self.b
+        self.write(a, ".cfg/one", "1\n")
+        self.sh(a, self.cz, "init")
+        self.sh(a, self.cz, "add", os.path.join(a, ".cfg/one"))
+        self.sh(a, "git", "-C", os.path.join(a, ".local/share/chezmoi"), "remote", "add", "origin", self.remote)
+        self.sh(a, ACTIONS, "save")
+        # Machine B has chezmoi and nothing else: the widget's "Connect a repo".
+        self.assertEqual(self.read(b)["error"], "nosource")
+        p = subprocess.run([ACTIONS, "setup"], env=self.env(b), cwd=b, capture_output=True, text=True, input=self.remote + "\n")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertFalse(os.path.exists(os.path.join(b, ".cfg/one")), "nothing is applied by setup")
+        s = self.read(b)
+        self.assertTrue(s["ok"])
+        self.assertIn({"path": "~/.cfg/one", "kind": "added"}, s["pending"])
+        # Empty answer: a new, empty repo.
+        c = self.home("c")
+        p = subprocess.run([ACTIONS, "setup"], env=self.env(c), cwd=c, capture_output=True, text=True, input="\n")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertTrue(self.read(c)["ok"])
+
     def test_offline_fetch_is_reported_not_fatal(self):
         a = self.a
         self.write(a, ".cfg/one", "1\n")

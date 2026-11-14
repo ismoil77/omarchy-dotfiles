@@ -69,7 +69,9 @@ Panel {
     themeColors: themePalette.colors
   }
   // ok -> the theme's green, something to do -> its yellow, an error -> red.
-  readonly property string kitLevel: mode === "error" ? "bad" : mode === "ok" || mode === "loading" ? "good" : "warn"
+  // The first run is something to do, not a failure.
+  readonly property string firstRun: Model.firstRun(info)
+  readonly property string kitLevel: firstRun !== "" ? "warn" : mode === "error" ? "bad" : mode === "ok" || mode === "loading" ? "good" : "warn"
 
   TextMetrics { id: filesMetrics; font.family: skin.fontFamily; font.pixelSize: skin.small; text: Model.filesSample(root.cfg, root.info.history.concat(root.info.incoming)) + "  " }
   TextMetrics { id: agoMetrics; font.family: skin.fontFamily; font.pixelSize: skin.small; text: Model.agoSample(root.cfg) }
@@ -115,11 +117,12 @@ Panel {
     // and Model.command quotes every word for that.
     Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", Model.command(actions, args, cfg.lang, chezmoi)])
     // Only what changes things is worth watching; a diff changes nothing.
-    if (args[0] === "save" || args[0] === "apply") watch()
+    if (args[0] !== "diff") watch()
   }
 
   function runNext() {
-    if (next !== "") runAction([next])
+    if (firstRun !== "") runAction([firstRun])
+    else if (next !== "") runAction([next])
     else refresh(true)
   }
 
@@ -282,6 +285,32 @@ Panel {
               toneText: skin.levelText(root.kitLevel)
             }
 
+            // ---------- First run: install chezmoi, connect a repo ----------
+            Kit.Section {
+              visible: root.firstRun !== ""
+              width: parent.width
+              look: skin
+              caption: root.tr("setupCaption")
+              spacing: Style.space(10)
+
+              Text {
+                width: parent.width
+                textFormat: Text.PlainText
+                text: root.firstRun === "install" ? root.tr("setupInstall") : root.tr("setupConnect")
+                color: skin.ink
+                font.family: skin.fontFamily
+                font.pixelSize: skin.small
+                wrapMode: Text.WordWrap
+              }
+
+              Kit.ActionButton {
+                look: skin
+                primary: true
+                text: root.firstRun === "install" ? root.tr("installChezmoi") : root.tr("connectRepo")
+                onClicked: root.runAction([root.firstRun])
+              }
+            }
+
             // ---------- Not sent: files edited or new here ----------
             Kit.Section {
               id: localList
@@ -423,6 +452,8 @@ Panel {
             // ---------- Actions: the next step is the filled one ----------
             Kit.ActionRow {
               width: parent.width
+              // Nothing to send or apply before the first run is done.
+              visible: root.firstRun === ""
 
               Kit.ActionButton {
                 look: skin

@@ -50,9 +50,18 @@ omarchy plugin remove ismoil.dotfiles
 Nothing else is left behind: the last state is kept only in `$XDG_RUNTIME_DIR/ismoil-dotfiles/` (gone
 at logout; shared by the bars of all monitors, owner-only). Your chezmoi setup and repo are untouched.
 
+## First run
+
+The command above is the whole installation. If chezmoi is not on this computer yet, or no repo is
+connected, the popup shows the step and a button for it:
+
+1. **Install chezmoi** — runs Omarchy's package command in a terminal (asks for your password).
+2. **Connect a repo** — paste your dotfiles repo's address, or start an empty one. Nothing on this
+   computer changes until you press Apply.
+
 ## Needs
 
-- `chezmoi` with a source repo that has a remote (`chezmoi init`, `git remote add origin …`)
+- `chezmoi` (the widget offers to install it) and, for syncing between machines, a repo with a remote
 - `git`, `python3`; **install `gitleaks`**: Send then scans the whole repo before every commit and
   stops on a found secret. Without it only new files are checked (see below), and Send lists the
   edited files and asks before sending them unscanned.

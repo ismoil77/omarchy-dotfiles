@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "ismoil.dotfiles",
   "name": "Dotfiles",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "author": "ismoil",
   "license": "MIT",
   "description": "chezmoi sync in the bar: ↑ changes on this machine not sent yet, ↓ saves from another machine to apply. Send and Apply in one click, with new files and edits checked for secrets before every push. English and Russian.",

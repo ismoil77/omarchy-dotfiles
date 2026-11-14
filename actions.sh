@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # What the Dotfiles widget's buttons run, in a terminal so chezmoi can ask.
+#   actions.sh install          install chezmoi (first run)
+#   actions.sh setup            connect a dotfiles repo, or start an empty one (first run)
 #   actions.sh save             re-add edits, add new files in dotfiles.watch, commit, push
 #   actions.sh apply            chezmoi update: pull the repo and apply it here
 #   actions.sh diff             what is not saved here, then what came from the repo
@@ -15,8 +17,36 @@ ru() { [[ ${DOTFILES_LANG:-} == ru ]]; }
 say() { if ru; then printf '%s\n' "$2"; else printf '%s\n' "$1"; fi; }
 fail() { say "$1" "$2" >&2; exit 1; }
 
+# First run, from the widget's own buttons: get chezmoi, then connect a repo.
+# Nothing is applied here: the repo's files reach this machine only on Apply.
+if [[ ${1:-} == install ]]; then
+  if command -v chezmoi >/dev/null; then say "chezmoi is already installed" "chezmoi уже установлен"; exit 0; fi
+  if command -v omarchy-pkg-add >/dev/null; then omarchy-pkg-add chezmoi
+  else sudo pacman -S --needed chezmoi; fi
+  command -v chezmoi >/dev/null || fail "chezmoi was not installed" "chezmoi не установился"
+  say "chezmoi is installed. Next in the widget: Connect a repo." "chezmoi установлен. Дальше в виджете: «Подключить репо»."
+  exit 0
+fi
+
 cz=${CHEZMOI:-$(command -v chezmoi)} || true
 [[ -n $cz && -x $cz ]] || fail "chezmoi is not installed" "chezmoi не установлен"
+
+if [[ ${1:-} == setup ]]; then
+  say "Your dotfiles repo (a URL, or user/repo on GitHub). Leave empty to start a new one here:" \
+      "Твой репо с конфигами (ссылка или user/repo на GitHub). Оставь пустым, чтобы начать новый тут:"
+  read -r url || url=
+  if [[ -n $url ]]; then
+    "$cz" init -- "$url" || fail "could not connect the repo" "не удалось подключить репо"
+    say "Connected. Press Apply in the widget to put its files on this machine." \
+        "Подключено. Нажми «Применить» в виджете, чтобы файлы легли на этот комп."
+  else
+    "$cz" init || fail "chezmoi init failed" "chezmoi init не удался"
+    say "Started an empty repo. Add a file with: chezmoi add ~/.config/…  Then Send keeps it in sync." \
+        "Создан пустой репо. Добавь файл: chezmoi add ~/.config/…  Дальше «Отправить» держит его в синке."
+  fi
+  exit 0
+fi
+
 src=$("$cz" source-path) || fail "chezmoi has no source repo (run chezmoi init)" "у chezmoi нет репо (сделай chezmoi init)"
 # git runs in the repo instead of taking it as `-C <path>`: one path less on
 # command lines, which any local account can read. (chezmoi itself still gets

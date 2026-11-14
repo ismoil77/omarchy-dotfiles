@@ -212,7 +212,13 @@ function headline(s) {
 }
 
 // The header's chip: the next step in one word.
+// What the first run still needs: "install" (no chezmoi), "setup" (no repo), or "".
+function firstRun(s) {
+  return s.loaded && !s.ok ? ({ nochezmoi: "install", nosource: "setup" }[s.error] || "") : ""
+}
+
 function chipText(cfg, s) {
+  if (firstRun(s) !== "") return tr(cfg, "chipSetup")
   var key = { ok: "chipOk", up: "chipSend", down: "chipApply", both: "chipBoth", error: "chipError" }[mode(s)]
   return key ? tr(cfg, key) : ""
 }

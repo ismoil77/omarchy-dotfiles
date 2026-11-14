@@ -64,7 +64,7 @@ test("state texts in both languages", () => {
   assert.equal(M.stateText(ru, ok({ ahead: 3 })), "Не отправлено: 3 изменения")
   assert.equal(M.stateText(ru, ok({ behind: 5 })), "Из репо: 5 обновлений")
   assert.equal(M.stateText(en, ok({ ahead: 1, behind: 1 })), "Not sent: 1 change · from the repo: 1 update")
-  assert.equal(M.stateText(ru, M.failure("nosource")), "У chezmoi ещё нет репо: сделай chezmoi init")
+  assert.equal(M.stateText(ru, M.failure("nosource")), "Шаг 2 из 2: репо с конфигами ещё не подключён")
 })
 
 test("ago", () => {
@@ -132,4 +132,14 @@ test("a blocked file is listed but not counted as to send", () => {
   assert.equal(M.barLabel(s), "↑1")
   assert.equal(M.kindLabel(ru, "blocked"), "общая папка: не отправится")
   assert.equal(M.mode(ok({ local: [{ path: "~/shared/b", kind: "blocked" }] })), "ok")
+})
+
+test("first run: install, then connect, and it is not an error state", () => {
+  assert.equal(M.firstRun(M.failure("nochezmoi")), "install")
+  assert.equal(M.firstRun(M.failure("nosource")), "setup")
+  assert.equal(M.firstRun(M.failure("busy")), "")
+  assert.equal(M.firstRun(ok({})), "")
+  assert.equal(M.firstRun(M.empty()), "")
+  assert.equal(M.chipText(ru, M.failure("nosource")), "настроить")
+  assert.equal(M.stateText(en, M.failure("nochezmoi")), "Step 1 of 2: chezmoi is not installed yet")
 })

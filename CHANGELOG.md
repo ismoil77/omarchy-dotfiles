@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0
+
+- **First run in the widget.** Without chezmoi, or without a repo, the popup shows the step to take
+  and a button for it: *Install chezmoi* (through Omarchy's package command, in a terminal), then
+  *Connect a repo* (paste its address, or start an empty one). Nothing is applied until you press
+  Apply. `omarchy plugin add … --enable` is the whole installation; no setup before enabling.
+
 ## 1.2.1
 
 - A landscape banner as the marketplace preview (the card crops a strip from the centre, a tall popup

@@ -7,8 +7,14 @@
 var en = {
   title: "Dotfiles",
   loading: "Reading chezmoi…",
-  errNoChezmoi: "chezmoi is not installed",
-  errNoSource: "chezmoi has no repo yet: run chezmoi init",
+  errNoChezmoi: "Step 1 of 2: chezmoi is not installed yet",
+  errNoSource: "Step 2 of 2: no dotfiles repo is connected yet",
+  setupCaption: "First run",
+  setupInstall: "chezmoi keeps your config files in a git repo. The button installs it (your password is asked in a terminal).",
+  setupConnect: "Paste the address of your dotfiles repo, or start a new one. Nothing on this computer changes until you press Apply.",
+  installChezmoi: "Install chezmoi",
+  connectRepo: "Connect a repo",
+  chipSetup: "set up",
   errBusy: "chezmoi is busy: another chezmoi command is running",
   errInternal: "The reader failed to run (is python3 installed?)",
 
@@ -68,8 +74,14 @@ var en = {
 var ru = {
   title: "Dotfiles",
   loading: "Читаю chezmoi…",
-  errNoChezmoi: "chezmoi не установлен",
-  errNoSource: "У chezmoi ещё нет репо: сделай chezmoi init",
+  errNoChezmoi: "Шаг 1 из 2: chezmoi ещё не установлен",
+  errNoSource: "Шаг 2 из 2: репо с конфигами ещё не подключён",
+  setupCaption: "Первый запуск",
+  setupInstall: "chezmoi хранит твои конфиги в git-репо. Кнопка установит его (пароль спросят в терминале).",
+  setupConnect: "Вставь адрес своего репо с конфигами или начни новый. На этом компе ничего не изменится, пока не нажмёшь «Применить».",
+  installChezmoi: "Установить chezmoi",
+  connectRepo: "Подключить репо",
+  chipSetup: "настроить",
   errBusy: "chezmoi занят: идёт другая команда chezmoi",
   errInternal: "Не удалось запустить чтение (установлен ли python3?)",
 
