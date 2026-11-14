@@ -120,7 +120,8 @@ class TwoMachines(unittest.TestCase):
         return env
 
     def sh(self, home, *cmd, ok=True):
-        p = subprocess.run(list(cmd), env=self.env(home), capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=60)
+        # From the home folder, as the widget's terminal runs.
+        p = subprocess.run(list(cmd), env=self.env(home), capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=60, cwd=home)
         if ok and p.returncode != 0:
             self.fail("%s failed: %s %s" % (cmd, p.stdout, p.stderr))
         return p
@@ -207,6 +208,42 @@ class TwoMachines(unittest.TestCase):
         self.sh(b, ACTIONS, "apply")
         with open(os.path.join(b, ".cfg/one")) as f:
             self.assertEqual(f.read(), "1a\n")
+
+    def setup_watched(self):
+        a = self.a
+        self.write(a, ".skills/one/SKILL.md", "one\n")
+        self.sh(a, self.cz, "init")
+        src = os.path.join(a, ".local/share/chezmoi")
+        self.write(src, ".chezmoidata/dotfiles.toml", '[dotfiles]\nwatch = ["~/.skills"]\n')
+        self.sh(a, self.cz, "add", os.path.join(a, ".skills/one"))
+        self.sh(a, "git", "-C", src, "remote", "add", "origin", self.remote)
+        self.sh(a, ACTIONS, "save")
+        return src
+
+    def managed(self, home):
+        return self.sh(home, self.cz, "managed", "--path-style=relative").stdout.split("\n")
+
+    def test_a_newline_in_a_file_name_cannot_pull_in_a_private_file(self):
+        a = self.a
+        self.setup_watched()
+        self.write(a, ".secret", "private\n")
+        # "x<newline>.secret": split at the newline it names ~/.skills/x (which
+        # exists) and ".secret", relative to the home folder Send runs in.
+        self.write(a, ".skills/x", "decoy\n")
+        self.write(a, ".skills/x\n.secret", "planted\n")
+        self.sh(a, ACTIONS, "save", ok=False)
+        self.assertNotIn(".secret", self.managed(a))
+
+    def test_a_new_file_with_a_secret_is_refused_and_nothing_is_pushed(self):
+        a = self.a
+        self.setup_watched()
+        before = self.sh(a, "git", "-C", self.remote, "rev-parse", "HEAD").stdout
+        token = "gh" + "p_" + "aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA5"
+        self.write(a, ".skills/two/SKILL.md", "token = " + token + "\n")
+        p = self.sh(a, ACTIONS, "save", ok=False)
+        self.assertNotEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.sh(a, "git", "-C", self.remote, "rev-parse", "HEAD").stdout, before)
+        self.assertNotIn(".skills/two/SKILL.md", self.managed(a))
 
     def test_offline_fetch_is_reported_not_fatal(self):
         a = self.a

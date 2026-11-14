@@ -18,7 +18,9 @@ fail() { say "$1" "$2" >&2; exit 1; }
 cz=${CHEZMOI:-$(command -v chezmoi)} || true
 [[ -n $cz && -x $cz ]] || fail "chezmoi is not installed" "chezmoi не установлен"
 src=$("$cz" source-path) || fail "chezmoi has no source repo (run chezmoi init)" "у chezmoi нет репо (сделай chezmoi init)"
-g() { git -C "$src" "$@"; }
+# The repo is git's working directory, not an argument: any local account can
+# read a process's command line.
+g() { (cd "$src" && git "$@"); }
 
 # Folders under dotfiles.watch in chezmoi data that exist on this machine.
 watched() {
@@ -26,20 +28,42 @@ watched() {
 import json, os, sys
 for p in (json.load(sys.stdin).get("dotfiles") or {}).get("watch") or []:
     p = os.path.expanduser(str(p))
-    if os.path.isdir(p): print(p)'
+    if os.path.isdir(p): print(os.path.realpath(p), end="\0")'
+}
+
+# New files under the watched folders, NUL-separated end to end: a newline in a
+# file name must not split it into other paths. Each one must still lie inside
+# a watched folder (its parent resolved, so a symlinked skill stays a symlink).
+new_files() {
+  local folders=("$@") f parent inside w
+  while IFS= read -r -d '' f; do
+    # chezmoi itself splits a path at a newline (2.74): such names never reach it.
+    if [[ $f =~ [[:cntrl:]] ]]; then printf '  ! %q\n' "$f" >&2; continue; fi
+    parent=$(realpath -e -- "$(dirname -- "$f")" 2>/dev/null) || continue
+    inside=
+    for w in "${folders[@]}"; do
+      [[ $parent == "$w" || $parent == "$w"/* ]] && { inside=1; break; }
+    done
+    if [[ -n $inside ]]; then printf '%s\0' "$parent/$(basename -- "$f")"
+    else printf '  ! %q\n' "$f" >&2; fi
+  done < <("$cz" unmanaged -0 --path-style=absolute -- "${folders[@]}")
 }
 
 save() {
   say "Collecting changes…" "Собираю изменения…"
   "$cz" re-add || fail "chezmoi re-add failed, nothing was sent" "chezmoi re-add упал, ничего не отправлено"
-  mapfile -t folders < <(watched)
+  mapfile -d '' -t folders < <(watched)
   if ((${#folders[@]})); then
-    mapfile -t new < <("$cz" unmanaged --path-style=absolute "${folders[@]}")
+    mapfile -d '' -t new < <(new_files "${folders[@]}")
     if ((${#new[@]})); then
-      printf '  + %s\n' "${new[@]}"
-      "$cz" add "${new[@]}" || fail "chezmoi add refused a file (a secret?), nothing was sent" "chezmoi add отказался добавить файл (секрет?), ничего не отправлено"
+      printf '  + %q\n' "${new[@]}"
+      # --secrets=error: chezmoi only warns by default.
+      "$cz" add --secrets=error -- "${new[@]}" || fail "chezmoi add refused a file (a secret?), nothing was sent" "chezmoi add отказался добавить файл (секрет?), ничего не отправлено"
     fi
   fi
+  # Edits to files already in the repo are scanned by gitleaks only.
+  command -v gitleaks >/dev/null || say "Note: gitleaks is not installed, edits to files already in the repo are not scanned for secrets" \
+                                        "Внимание: gitleaks не установлен, правки уже сохранённых файлов не проверяются на секреты"
   if command -v gitleaks >/dev/null && ! gitleaks dir "$src" --no-banner >/dev/null 2>&1; then
     gitleaks dir "$src" --no-banner -v 2>&1 | grep -E 'File:|RuleID:'
     fail "gitleaks found a secret, nothing was sent" "gitleaks нашёл секрет, ничего не отправлено"

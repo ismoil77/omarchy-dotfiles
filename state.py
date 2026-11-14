@@ -47,9 +47,9 @@ class Busy(Exception):
     pass
 
 
-def run(cmd, timeout=TIMEOUT, check=True):
+def run(cmd, timeout=TIMEOUT, check=True, cwd=None):
     try:
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=ENV, stdin=subprocess.DEVNULL)
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=ENV, stdin=subprocess.DEVNULL, cwd=cwd)
     except subprocess.TimeoutExpired:
         raise Busy()
     if check and p.returncode != 0:
@@ -149,9 +149,11 @@ def new_files(cz, folders):
     if not folders:
         return []
     home = os.path.expanduser("~")
-    p = run([cz, "unmanaged", "--path-style=absolute", *folders], check=False)
+    p = run([cz, "unmanaged", "-0", "--path-style=absolute", "--", *folders], check=False)
     out = []
-    for line in p.stdout.splitlines():
+    for line in p.stdout.split("\0"):
+        if not line or any(ord(c) < 32 for c in line):
+            continue  # Send never adds names with control characters
         if line.startswith(home + "/"):
             line = "~" + line[len(home):]
         out.append({"path": line, "kind": "new"})
@@ -176,15 +178,17 @@ def read(cz, do_fetch):
     if not src or not os.path.isdir(os.path.join(src, ".git")):
         state["error"] = "nosource"
         return state
-    git = ["git", "-C", src]
+    # The repo is git's working directory, not an argument (argv is public to local accounts).
+    def g(args, **kw):
+        return run(["git", *args], cwd=src, **kw)
 
-    state["remote"] = short_remote(run(git + ["remote", "get-url", "origin"], check=False).stdout)
-    state["upstream"] = run(git + ["rev-parse", "--abbrev-ref", "@{u}"], check=False).returncode == 0
+    state["remote"] = short_remote(g(["remote", "get-url", "origin"], check=False).stdout)
+    state["upstream"] = g(["rev-parse", "--abbrev-ref", "@{u}"], check=False).returncode == 0
 
     fetch_error = ""
     if do_fetch and state["remote"]:
         try:
-            p = run(git + ["fetch", "--quiet", "origin"], timeout=FETCH_TIMEOUT, check=False)
+            p = g(["fetch", "--quiet", "origin"], timeout=FETCH_TIMEOUT, check=False)
             if p.returncode != 0:
                 fetch_error = classify_fetch(p.stderr)
         except Busy:
@@ -196,14 +200,14 @@ def read(cz, do_fetch):
     state["local"], state["pending"], state["scripts"] = parse_status(status.stdout)
     state["local"] += new_files(cz, watch_folders(cz))
 
-    state["uncommitted"] = len([l for l in run(git + ["status", "--porcelain"]).stdout.splitlines() if l.strip()])
+    state["uncommitted"] = len([l for l in g(["status", "--porcelain"]).stdout.splitlines() if l.strip()])
     fmt = "--format=%x1e%ct%x1f%s"
     if state["upstream"]:
         state["ahead"], state["behind"] = count_ahead_behind(
-            run(git + ["rev-list", "--left-right", "--count", "HEAD...@{u}"]).stdout)
+            g(["rev-list", "--left-right", "--count", "HEAD...@{u}"]).stdout)
         if state["behind"]:
-            state["incoming"] = parse_log(run(git + ["log", "-%d" % INCOMING, fmt, "--shortstat", "HEAD..@{u}"]).stdout)
-    state["history"] = parse_log(run(git + ["log", "-%d" % HISTORY, fmt, "--shortstat"], check=False).stdout)
+            state["incoming"] = parse_log(g(["log", "-%d" % INCOMING, fmt, "--shortstat", "HEAD..@{u}"]).stdout)
+    state["history"] = parse_log(g(["log", "-%d" % HISTORY, fmt, "--shortstat"], check=False).stdout)
     state["ok"] = True
     return state
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.1
+
+- Security (marketplace review): Send reads new file names NUL-separated, never adds a name with a
+  control character (chezmoi 2.74 splits a path at a newline itself), and keeps only paths inside a
+  watched folder. New files are added with `--secrets=error`; without gitleaks Send says edits are not
+  scanned. git runs in the repo folder instead of `git -C` (no path on a command line).
+
 ## 1.1.0 — 2026-11-14
 
 - New look from kit 1.2: lists in cards, the state in a tinted square (green saved, yellow to do,

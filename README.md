@@ -46,7 +46,8 @@ Nothing else is left behind: the widget keeps no cache. Your chezmoi setup and r
 ## Needs
 
 - `chezmoi` with a source repo that has a remote (`chezmoi init`, `git remote add origin …`)
-- `git`, `python3`; `gitleaks` is used by Send when installed: a found secret stops the push
+- `git`, `python3`; **install `gitleaks`**: Send then scans the whole repo before every commit and
+  stops on a found secret. Without it, only new files are checked (see below) and Send says so.
 
 ## New files in folders
 
@@ -59,7 +60,10 @@ should count as "not sent" (skills, commands, notes) in your chezmoi data, for e
 watch = ["~/.claude/skills", "~/.claude/commands"]
 ```
 
-Send adds those new files with `chezmoi add`, which still refuses files that look like secrets.
+Send adds those new files with `chezmoi add --secrets=error`, so a new file that looks like a secret
+is refused and nothing is sent (chezmoi itself only warns by default). Edits to files already in the
+repo are checked by gitleaks only. A name with a newline or another control character is never
+added: chezmoi 2.74 would split it into other paths. Every new path must lie inside a watched folder.
 
 ## Settings
 
