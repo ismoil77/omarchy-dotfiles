@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.2.0 — family look and audit
+
+- The family look (kit 2). The popup is built the first time it opens. Shortcuts work on a Russian layout.
+- **After the first Send the widget polled every 3 s forever** (a binding on the clock never
+  re-evaluated). It is a flag with a timer now, and only Send and Apply start it.
+- Both bars share one reading under a lock, and one `git fetch` serves both.
+- Send: a failed `chezmoi status`/`unmanaged` stops it instead of reading as "nothing to send"; without
+  gitleaks it lists the edited files and asks before sending them unscanned; a watched folder must be
+  inside the home folder; paths are read absolute, so a custom destination works.
+- A file Send will leave out (a folder on its way is not yours alone) is marked in the popup and not
+  counted in ↑.
+- Compare keeps the repo's version in `$XDG_RUNTIME_DIR`, removes it when the window closes, and falls
+  back to the right diff direction. Opening and comparing run without a shell parsing the path.
+- The repo name never shows credentials (`@` in a password, a `?query`); odd line breaks in a file name
+  no longer forge rows; the shared state folder is used only when it is the user's alone.
+- A file deleted here is not offered to open or compare. Removed unused texts.
+
 ## 1.1.3
 
 - Security (marketplace review): Send no longer runs a bare `chezmoi re-add`. It re-adds only the

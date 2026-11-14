@@ -17,7 +17,7 @@ var ICONS = {
   loading: "\u{F0160}"
 }
 
-var KIND_KEYS = { modified: "kindModified", deleted: "kindDeleted", added: "kindAdded", new: "kindNew" }
+var KIND_KEYS = { modified: "kindModified", deleted: "kindDeleted", added: "kindAdded", new: "kindNew", blocked: "kindBlocked" }
 var ERROR_KEYS = { nochezmoi: "errNoChezmoi", nosource: "errNoSource", busy: "errBusy", internal: "errInternal" }
 
 // `raw` = { language, locale }; `lang` is what every text function reads.
@@ -75,7 +75,10 @@ function parse(raw) {
 // Not in the repo yet: files edited here, files prepared but not committed,
 // commits not pushed. Each is a different step of the same "not sent".
 function upCount(s) {
-  return s.ok ? s.local.length + s.uncommitted + s.ahead : 0
+  if (!s.ok) return 0
+  // A blocked file is listed, but Send will not take it: it is not "to send".
+  var sendable = s.local.filter(function(r) { return r.kind !== "blocked" }).length
+  return sendable + s.uncommitted + s.ahead
 }
 
 // In the repo, not here: commits not pulled, and files pulled but not applied.
@@ -119,11 +122,6 @@ function stateText(cfg, s) {
   if (m === "up") return tr(cfg, "stateUp", { up: up })
   if (m === "down") return tr(cfg, "stateDown", { down: down })
   return tr(cfg, "stateOk")
-}
-
-function hint(cfg, s) {
-  var key = { ok: "hintOk", up: "hintUp", down: "hintDown", both: "hintBoth" }[mode(s)]
-  return key ? tr(cfg, key) : ""
 }
 
 function tooltip(cfg, s) {

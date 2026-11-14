@@ -19,8 +19,9 @@ buttons run in a floating terminal, so chezmoi can still ask you things:
 | Apply | `a` | `chezmoi update` (pull and apply) |
 | Changes | `d` | your edits (`chezmoi diff --reverse`), then what came from the repo |
 
-`Enter` runs the stressed button, `r` checks again, a click on a file row shows its change. Right
-click on the bar icon checks again.
+`Enter` runs the stressed button, `r` checks again (the keys work on a Russian layout too). A click on
+a file opens it in its app (`xdg-open`); **Compare**, on hover, puts the repo's version beside it in
+Meld, VSCodium or VS Code. Right click on the bar icon checks again.
 
 ## Install
 
@@ -31,9 +32,10 @@ omarchy plugin add https://github.com/ismoil77/omarchy-dotfiles.git --enable
 (or copy the folder to `~/.config/omarchy/plugins/ismoil.dotfiles/`, run
 `omarchy-shell shell rescanPlugins`, then `omarchy plugin enable ismoil.dotfiles`).
 
-Plugins run unsandboxed inside the shell — read the code first; it is small. The widget only reads
-(`chezmoi status`, `chezmoi unmanaged`, `git fetch`/`log`); it writes nothing until you press a
-button, and every button runs in a terminal you can see. Update with `omarchy plugin update ismoil.dotfiles`.
+Plugins run unsandboxed inside the shell — read the code first; it is small. On its own the widget
+only looks: `chezmoi status`, `chezmoi unmanaged`, `git log`, and `git fetch` (which updates the repo's
+remote refs). Your files and the repo's contents change only when you press Send or Apply, and those
+run in a terminal you can see. Update with `omarchy plugin update ismoil.dotfiles`.
 
 ## Remove
 
@@ -41,13 +43,15 @@ button, and every button runs in a terminal you can see. Update with `omarchy pl
 omarchy plugin remove ismoil.dotfiles
 ```
 
-Nothing else is left behind: the widget keeps no cache. Your chezmoi setup and repo are untouched.
+Nothing else is left behind: the last state is kept only in `$XDG_RUNTIME_DIR/ismoil-dotfiles/` (gone
+at logout; shared by the bars of all monitors, owner-only). Your chezmoi setup and repo are untouched.
 
 ## Needs
 
 - `chezmoi` with a source repo that has a remote (`chezmoi init`, `git remote add origin …`)
 - `git`, `python3`; **install `gitleaks`**: Send then scans the whole repo before every commit and
-  stops on a found secret. Without it, only new files are checked (see below) and Send says so.
+  stops on a found secret. Without it only new files are checked (see below), and Send lists the
+  edited files and asks before sending them unscanned.
 
 ## New files in folders
 
@@ -63,9 +67,15 @@ watch = ["~/.claude/skills", "~/.claude/commands"]
 Send adds those new files with `chezmoi add --secrets=error`, so a new file that looks like a secret
 is refused and nothing is sent (chezmoi itself only warns by default). Edits to files already in the
 repo are checked by gitleaks only. A name with a newline or another control character is never
-added: chezmoi 2.74 would split it into other paths. Every new path must lie inside a watched folder. For new and edited files alike, every folder on the
+added: chezmoi 2.74 would split it into other paths. A watched folder must be inside the home folder (never the home folder itself). Every new path must
+lie inside a watched folder. For new and edited files alike, every folder on the
 way (and inside a new folder) must be yours alone — not writable by group or others, not a link — or
-the file is skipped with a message.
+the file is skipped with a message, and the popup marks it "shared folder: not sent" beforehand.
+
+## Hook
+
+`DOTFILES_SAVE=1` is set while Send runs. A chezmoi `status` pre-hook can test it to refresh generated
+files (a package list, an export) just before a Send and at no other time.
 
 ## Settings
 

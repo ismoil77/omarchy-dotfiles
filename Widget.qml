@@ -5,6 +5,7 @@ import qs.Commons
 import qs.Ui
 import "kit" as Kit
 import "Model.js" as Model
+import "kit/I18n.js" as I18n
 
 // Dotfiles widget: whether this machine's chezmoi configs are in the repo,
 // and whether the repo has something this machine has not applied.
@@ -14,7 +15,8 @@ import "Model.js" as Model
 //   right click  check the repo again
 //   popup        what is not sent, what came from the repo, the last saves;
 //                Send (s), Apply (a), Changes (d), r checks again, Enter runs
-//                the stressed button; a file row opens its change
+//                the stressed button; a click on a file opens it in its app,
+//                Compare (on hover) puts the repo's version beside it
 // Buttons run actions.sh in a floating terminal so chezmoi can ask questions.
 Panel {
   id: root
@@ -38,8 +40,11 @@ Panel {
   property bool allPending: false
   // When the repo was last asked (ms); 0 makes the first run fetch.
   property real fetchedAt: 0
-  // A button's terminal may change things for a while: check often until then.
-  property real watchUntil: 0
+  // Send or Apply is running in a terminal: check often for three minutes.
+  // (A flag with a timer: a binding on Date.now() would never notice time passing.)
+  property bool watching: false
+  Timer { id: watchOff; interval: 180000; onTriggered: root.watching = false }
+  function watch() { watching = true; watchOff.restart() }
   // Asked while state.py was running: one more run follows it, fetching if asked to.
   property bool rerun: false
   property bool rerunFetch: false
@@ -81,7 +86,7 @@ Panel {
       fetchedAt = Date.now()
     }
     // Right after a button, the change must show at once, not another bar's answer.
-    if (Date.now() < watchUntil) command.push("--fresh")
+    if (watching) command.push("--fresh")
     if (chezmoi !== "") command.push("--chezmoi", chezmoi)
     answered = false
     stateProc.command = command
@@ -106,8 +111,11 @@ Panel {
   function runAction(args) {
     close()
     if (!bar) return
-    bar.run("omarchy-launch-floating-terminal-with-presentation " + Model.shellQuote(Model.command(actions, args, cfg.lang, chezmoi)))
-    watchUntil = Date.now() + 180000
+    // No shell parses this argv; the launcher gives its one argument to bash -c,
+    // and Model.command quotes every word for that.
+    Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", Model.command(actions, args, cfg.lang, chezmoi)])
+    // Only what changes things is worth watching; a diff changes nothing.
+    if (args[0] === "save" || args[0] === "apply") watch()
   }
 
   function runNext() {
@@ -151,7 +159,7 @@ Panel {
 
   // Local checks are cheap (chezmoi status, git); the repo is asked every fetchMinutes.
   Timer {
-    interval: Date.now() < root.watchUntil ? 3000 : root.pollSeconds * 1000
+    interval: root.watching ? 3000 : root.pollSeconds * 1000
     running: true
     repeat: true
     triggeredOnStart: true
@@ -160,7 +168,7 @@ Panel {
 
   Timer {
     interval: 60000
-    running: true
+    running: root.opened
     repeat: true
     onTriggered: root.now = Date.now() / 1000
   }
@@ -173,7 +181,6 @@ Panel {
     } else {
       allLocal = false
       allPending = false
-      scroller.contentY = 0
     }
   }
 
@@ -209,13 +216,12 @@ Panel {
   // Opening a file is the system's business: xdg-open picks the app, as a file manager would.
   function openFile(row) {
     close()
-    if (bar) bar.run("xdg-open " + Model.shellQuote(Model.expandHome(row.path, Quickshell.env("HOME"))))
+    Util.execArgv(["xdg-open", Model.expandHome(row.path, Quickshell.env("HOME"))])
   }
 
-  function compareFile(row) {
+  function compareFile(row, pending) {
     close()
-    if (bar) bar.run(Model.command(actions, ["compare", row.path], cfg.lang, chezmoi))
-    watchUntil = Date.now() + 180000
+    Util.execArgv(["env", "DOTFILES_LANG=" + cfg.lang].concat(chezmoi !== "" ? ["CHEZMOI=" + chezmoi] : [], [actions, "compare", pending ? "pending" : "local", row.path]))
   }
 
   KeyboardPanel {
@@ -224,219 +230,229 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
-    focusTarget: keyCatcher
+    focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Math.round(Style.space(400) * skin.textScale))
-    contentHeight: panel.fittedContentHeight(column.implicitHeight + skin.bottomPad)
+    contentHeight: panel.fittedContentHeight(panel.loadedContentHeight + skin.bottomPad)
 
-    PanelKeyCatcher {
-      id: keyCatcher
-      anchors.fill: parent
-      onActivateRequested: root.runNext()
-      onCloseRequested: root.close()
-      onTabRequested: function(direction) { root.switchPanel(direction) }
-      onTextKey: function(t) {
-        if (t === "r") root.refresh(true)
-        else if (t === "s") root.runAction(["save"])
-        else if (t === "a") root.runAction(["apply"])
-        else if (t === "d") root.runAction(["diff"])
-      }
-
-      Flickable {
-        id: scroller
+    // Built the first time the popup opens, not at shell start on every monitor.
+    content: Component {
+      PanelKeyCatcher {
+        id: keyCatcher
         anchors.fill: parent
-        contentWidth: width
-        contentHeight: column.implicitHeight + skin.bottomPad
-        interactive: contentHeight > height
-        boundsBehavior: Flickable.StopAtBounds
-        clip: true
+        implicitHeight: column.implicitHeight
+        onActivateRequested: root.runNext()
+        onCloseRequested: root.close()
+        onTabRequested: function(direction) { root.switchPanel(direction) }
+        onTextKey: function(t) {
+          t = I18n.latinKey(t)
+          if (t === "r") root.refresh(true)
+          else if (t === "s") root.runAction(["save"])
+          else if (t === "a") root.runAction(["apply"])
+          else if (t === "d") root.runAction(["diff"])
+        }
 
-        Column {
-          id: column
-          width: scroller.width
-          spacing: Style.space(12)
-
-          Kit.Header {
-            width: parent.width
-            look: skin
-            glyph: Model.icon(root.info)
-            name: root.tr("title")
-            value: Model.headline(root.info)
-            say: Model.stateText(root.cfg, root.info)
-            chip: Model.chipText(root.cfg, root.info)
-            tone: skin.levelFill(root.kitLevel)
-            toneText: skin.levelText(root.kitLevel)
+        Flickable {
+          id: scroller
+          // Reopen at the top, not where it was scrolled to last time.
+          Connections {
+            target: root
+            function onOpenedChanged() { if (!root.opened) scroller.contentY = 0 }
           }
+          anchors.fill: parent
+          contentWidth: width
+          contentHeight: column.implicitHeight + skin.bottomPad
+          interactive: contentHeight > height
+          boundsBehavior: Flickable.StopAtBounds
+          clip: true
 
-          // ---------- Not sent: files edited or new here ----------
-          Kit.Section {
-            id: localList
-            visible: root.info.local.length > 0
-            width: parent.width
-            look: skin
-            caption: root.tr("sectionLocal")
-            hint: root.tr("openHint")
+          Column {
+            id: column
+            width: scroller.width
+            spacing: Style.space(12)
 
-            Repeater {
-              model: Model.visibleRows(root.info.local, root.allLocal)
-              delegate: FileRow { required property var modelData; row: modelData; pending: false; width: localList.width - localList.padding * 2 }
-            }
-
-            Kit.MoreButton {
+            Kit.Header {
+              width: parent.width
               look: skin
-              text: Model.moreLabel(root.cfg, root.info.local, root.allLocal)
-              onClicked: root.allLocal = !root.allLocal
+              glyph: Model.icon(root.info)
+              name: root.tr("title")
+              value: Model.headline(root.info)
+              say: Model.stateText(root.cfg, root.info)
+              chip: Model.chipText(root.cfg, root.info)
+              tone: skin.levelFill(root.kitLevel)
+              toneText: skin.levelText(root.kitLevel)
             }
 
-            Kit.InfoPair {
+            // ---------- Not sent: files edited or new here ----------
+            Kit.Section {
+              id: localList
+              visible: root.info.local.length > 0
+              width: parent.width
               look: skin
-              visible: root.info.uncommitted > 0
-              label: root.tr("rowUncommitted")
-              value: Model.count(root.cfg, "filesN", root.info.uncommitted)
-            }
-            Kit.InfoPair {
-              look: skin
-              visible: root.info.ahead > 0
-              label: root.tr("rowAhead")
-              value: Model.count(root.cfg, "savesN", root.info.ahead)
-            }
-          }
+              caption: root.tr("sectionLocal")
+              hint: root.tr("openHint")
 
-          // Commits made here but not pushed, with no edited file left to list.
-          Kit.Section {
-            visible: root.info.local.length === 0 && (root.info.uncommitted > 0 || root.info.ahead > 0)
-            width: parent.width
-            look: skin
-            caption: root.tr("sectionLocal")
+              Repeater {
+                model: Model.visibleRows(root.info.local, root.allLocal)
+                delegate: FileRow { required property var modelData; row: modelData; pending: false; width: localList.width - localList.padding * 2 }
+              }
 
-            Kit.InfoPair {
-              look: skin
-              visible: root.info.uncommitted > 0
-              label: root.tr("rowUncommitted")
-              value: Model.count(root.cfg, "filesN", root.info.uncommitted)
-            }
-            Kit.InfoPair {
-              look: skin
-              visible: root.info.ahead > 0
-              label: root.tr("rowAhead")
-              value: Model.count(root.cfg, "savesN", root.info.ahead)
-            }
-          }
-
-          // ---------- From the repo ----------
-          Kit.Section {
-            id: incomingList
-            visible: root.info.incoming.length > 0
-            width: parent.width
-            look: skin
-            caption: root.tr("sectionIncoming")
-
-            Repeater {
-              model: root.info.incoming
-              delegate: Kit.StatRow {
-                required property var modelData
-                width: incomingList.width - incomingList.padding * 2
+              Kit.MoreButton {
                 look: skin
-                name: modelData.subject
-                cells: Model.commitCells(root.cfg, modelData, root.now)
-                cellWidths: [filesMetrics.width, agoMetrics.width]
-                dimCells: [true, true]
-                share: 0
+                text: Model.moreLabel(root.cfg, root.info.local, root.allLocal)
+                onClicked: root.allLocal = !root.allLocal
+              }
+
+              Kit.InfoPair {
+                look: skin
+                visible: root.info.uncommitted > 0
+                label: root.tr("rowUncommitted")
+                value: Model.count(root.cfg, "filesN", root.info.uncommitted)
+              }
+              Kit.InfoPair {
+                look: skin
+                visible: root.info.ahead > 0
+                label: root.tr("rowAhead")
+                value: Model.count(root.cfg, "savesN", root.info.ahead)
               }
             }
-          }
 
-          Kit.Section {
-            id: pendingList
-            visible: root.info.pending.length > 0
-            width: parent.width
-            look: skin
-            caption: root.tr("sectionPending")
-            hint: root.tr("openHint")
-
-            Repeater {
-              model: Model.visibleRows(root.info.pending, root.allPending)
-              delegate: FileRow { required property var modelData; row: modelData; pending: true; width: pendingList.width - pendingList.padding * 2 }
-            }
-
-            Kit.MoreButton {
+            // Commits made here but not pushed, with no edited file left to list.
+            Kit.Section {
+              visible: root.info.local.length === 0 && (root.info.uncommitted > 0 || root.info.ahead > 0)
+              width: parent.width
               look: skin
-              text: Model.moreLabel(root.cfg, root.info.pending, root.allPending)
-              onClicked: root.allPending = !root.allPending
-            }
+              caption: root.tr("sectionLocal")
 
-            Kit.InfoPair {
-              look: skin
-              visible: root.info.scripts > 0
-              label: root.tr("rowScripts")
-              value: String(root.info.scripts)
-            }
-          }
-
-          // ---------- Last saves ----------
-          Kit.Section {
-            id: historyList
-            visible: root.info.ok
-            width: parent.width
-            look: skin
-            caption: root.tr("sectionHistory")
-            hint: root.info.remote || root.tr("rowRepoNone")
-
-            Text {
-              visible: root.info.history.length === 0
-              textFormat: Text.PlainText
-              text: root.tr("noHistory")
-              color: skin.dim
-              font.family: skin.fontFamily
-              font.pixelSize: skin.small
-            }
-
-            Repeater {
-              model: root.info.history
-              delegate: Kit.StatRow {
-                required property var modelData
-                width: historyList.width - historyList.padding * 2
+              Kit.InfoPair {
                 look: skin
-                name: modelData.subject
-                cells: Model.commitCells(root.cfg, modelData, root.now)
-                cellWidths: [filesMetrics.width, agoMetrics.width]
-                dimCells: [true, true]
-                share: 0
+                visible: root.info.uncommitted > 0
+                label: root.tr("rowUncommitted")
+                value: Model.count(root.cfg, "filesN", root.info.uncommitted)
+              }
+              Kit.InfoPair {
+                look: skin
+                visible: root.info.ahead > 0
+                label: root.tr("rowAhead")
+                value: Model.count(root.cfg, "savesN", root.info.ahead)
               }
             }
-          }
 
-          // ---------- Actions: the next step is the filled one ----------
-          Kit.ActionRow {
-            width: parent.width
+            // ---------- From the repo ----------
+            Kit.Section {
+              id: incomingList
+              visible: root.info.incoming.length > 0
+              width: parent.width
+              look: skin
+              caption: root.tr("sectionIncoming")
 
-            Kit.ActionButton {
-              look: skin
-              iconText: "\u{F0167}"
-              text: root.tr("send")
-              primary: root.next === "save"
-              onClicked: root.runAction(["save"])
+              Repeater {
+                model: root.info.incoming
+                delegate: Kit.StatRow {
+                  required property var modelData
+                  width: incomingList.width - incomingList.padding * 2
+                  look: skin
+                  name: modelData.subject
+                  cells: Model.commitCells(root.cfg, modelData, root.now)
+                  cellWidths: [filesMetrics.width, agoMetrics.width]
+                  dimCells: [true, true]
+                  share: 0
+                }
+              }
             }
-            Kit.ActionButton {
-              look: skin
-              iconText: "\u{F0162}"
-              text: root.tr("apply")
-              primary: root.next === "apply"
-              onClicked: root.runAction(["apply"])
-            }
-            Kit.ActionButton {
-              look: skin
-              iconText: "\u{F0219}"
-              text: root.tr("diff")
-              onClicked: root.runAction(["diff"])
-            }
-          }
 
-          Kit.Signature {
-            width: parent.width
-            look: skin
-            widget: "dotfiles"
-            extra: root.info.ok ? root.tr("rowChecked").toLowerCase() + " " + Model.checkedText(root.cfg, root.info, root.now) : ""
-            version: root.version
+            Kit.Section {
+              id: pendingList
+              visible: root.info.pending.length > 0
+              width: parent.width
+              look: skin
+              caption: root.tr("sectionPending")
+              hint: root.tr("openHint")
+
+              Repeater {
+                model: Model.visibleRows(root.info.pending, root.allPending)
+                delegate: FileRow { required property var modelData; row: modelData; pending: true; width: pendingList.width - pendingList.padding * 2 }
+              }
+
+              Kit.MoreButton {
+                look: skin
+                text: Model.moreLabel(root.cfg, root.info.pending, root.allPending)
+                onClicked: root.allPending = !root.allPending
+              }
+
+              Kit.InfoPair {
+                look: skin
+                visible: root.info.scripts > 0
+                label: root.tr("rowScripts")
+                value: String(root.info.scripts)
+              }
+            }
+
+            // ---------- Last saves ----------
+            Kit.Section {
+              id: historyList
+              visible: root.info.ok
+              width: parent.width
+              look: skin
+              caption: root.tr("sectionHistory")
+              hint: root.info.remote || root.tr("rowRepoNone")
+
+              Text {
+                visible: root.info.history.length === 0
+                textFormat: Text.PlainText
+                text: root.tr("noHistory")
+                color: skin.dim
+                font.family: skin.fontFamily
+                font.pixelSize: skin.small
+              }
+
+              Repeater {
+                model: root.info.history
+                delegate: Kit.StatRow {
+                  required property var modelData
+                  width: historyList.width - historyList.padding * 2
+                  look: skin
+                  name: modelData.subject
+                  cells: Model.commitCells(root.cfg, modelData, root.now)
+                  cellWidths: [filesMetrics.width, agoMetrics.width]
+                  dimCells: [true, true]
+                  share: 0
+                }
+              }
+            }
+
+            // ---------- Actions: the next step is the filled one ----------
+            Kit.ActionRow {
+              width: parent.width
+
+              Kit.ActionButton {
+                look: skin
+                iconText: "\u{F0167}"
+                text: root.tr("send")
+                primary: root.next === "save"
+                onClicked: root.runAction(["save"])
+              }
+              Kit.ActionButton {
+                look: skin
+                iconText: "\u{F0162}"
+                text: root.tr("apply")
+                primary: root.next === "apply"
+                onClicked: root.runAction(["apply"])
+              }
+              Kit.ActionButton {
+                look: skin
+                iconText: "\u{F0219}"
+                text: root.tr("diff")
+                onClicked: root.runAction(["diff"])
+              }
+            }
+
+            Kit.Signature {
+              width: parent.width
+              look: skin
+              widget: "dotfiles"
+              extra: root.info.ok ? root.tr("rowChecked").toLowerCase() + " " + Model.checkedText(root.cfg, root.info, root.now) : ""
+              version: root.version
+            }
           }
         }
       }
@@ -449,6 +465,8 @@ Panel {
     id: fileRow
     property var row: ({})
     property bool pending: false
+    // A file deleted here cannot be opened or compared; one the repo will add can only be compared.
+    readonly property bool exists: pending ? row.kind !== "added" : row.kind !== "deleted"
     implicitHeight: Math.max(pathText.implicitHeight, compareButton.implicitHeight) + Style.space(8)
 
     HoverHandler { id: fileHover }
@@ -480,6 +498,7 @@ Panel {
       anchors.top: parent.top
       anchors.bottom: parent.bottom
       cursorShape: Qt.PointingHandCursor
+      enabled: fileRow.exists
       onClicked: root.openFile(fileRow.row)
     }
 
@@ -502,12 +521,12 @@ Panel {
 
       Kit.ActionButton {
         id: compareButton
-        visible: fileHover.hovered && fileRow.row.kind !== "new"
+        visible: fileHover.hovered && fileRow.exists && fileRow.row.kind !== "new" && fileRow.row.kind !== "blocked"
         look: skin
         compact: true
         iconText: "\u{F0219}"
         text: root.tr("compare")
-        onClicked: root.compareFile(fileRow.row)
+        onClicked: root.compareFile(fileRow.row, fileRow.pending)
       }
     }
   }

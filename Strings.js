@@ -16,10 +16,6 @@ var en = {
   stateUp: "Not sent: {up}",
   stateDown: "From the repo: {down}",
   stateBoth: "Not sent: {up} · from the repo: {down}",
-  hintOk: "Nothing to do",
-  hintUp: "Press Send to save to the repo",
-  hintDown: "Press Apply to bring the repo's version here",
-  hintBoth: "Send first, then Apply",
   tipBar: "Dotfiles: {state}",
 
   changesN: ["change", "changes"],
@@ -36,7 +32,7 @@ var en = {
   kindDeleted: "deleted",
   kindAdded: "added",
   kindNew: "new",
-  rowTip: "Show the change",
+  kindBlocked: "shared folder: not sent",
   noHistory: "No saves yet",
   more: "{n} more",
   less: "Collapse",
@@ -44,7 +40,6 @@ var en = {
   rowUncommitted: "Prepared, not sent",
   rowAhead: "Saved here, not in the repo",
   rowScripts: "Scripts Apply will run",
-  rowRepo: "Repo",
   rowRepoNone: "not connected",
   rowChecked: "Checked the repo",
   checkedNever: "not yet",
@@ -65,13 +60,9 @@ var en = {
   chipError: "error",
   openHint: "click opens",
   compare: "Compare",
-  compareTip: "The repo's version beside this file",
   send: "Send",
-  sendTip: "Save edits and new files to the repo · S",
   apply: "Apply",
-  applyTip: "Pull the repo and apply it here · A",
-  diff: "Changes",
-  diffTip: "What differs, in a terminal · D"
+  diff: "Changes"
 }
 
 var ru = {
@@ -86,10 +77,6 @@ var ru = {
   stateUp: "Не отправлено: {up}",
   stateDown: "Из репо: {down}",
   stateBoth: "Не отправлено: {up} · из репо: {down}",
-  hintOk: "Делать ничего не нужно",
-  hintUp: "Нажми «Отправить», чтобы сохранить в репо",
-  hintDown: "Нажми «Применить», чтобы забрать версию из репо",
-  hintBoth: "Сначала «Отправить», потом «Применить»",
   tipBar: "Dotfiles: {state}",
 
   changesN: ["изменение", "изменения", "изменений"],
@@ -106,7 +93,7 @@ var ru = {
   kindDeleted: "удалён",
   kindAdded: "добавлен",
   kindNew: "новый",
-  rowTip: "Показать изменение",
+  kindBlocked: "общая папка: не отправится",
   noHistory: "Сохранений ещё нет",
   more: "Ещё {n}",
   less: "Свернуть",
@@ -114,7 +101,6 @@ var ru = {
   rowUncommitted: "Подготовлено, не отправлено",
   rowAhead: "Сохранено тут, не в репо",
   rowScripts: "Скрипты, которые запустит «Применить»",
-  rowRepo: "Репо",
   rowRepoNone: "не подключён",
   rowChecked: "Проверено в репо",
   checkedNever: "ещё нет",
@@ -135,13 +121,9 @@ var ru = {
   chipError: "ошибка",
   openHint: "клик открывает",
   compare: "Сравнить",
-  compareTip: "Версия из репо рядом с этим файлом",
   send: "Отправить",
-  sendTip: "Сохранить правки и новые файлы в репо · S",
   apply: "Применить",
-  applyTip: "Скачать репо и применить на этом компе · A",
-  diff: "Изменения",
-  diffTip: "Что отличается, в терминале · D"
+  diff: "Изменения"
 }
 
 var langs = ["en", "ru"]

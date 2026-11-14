@@ -42,6 +42,26 @@ class Parsers(unittest.TestCase):
                                    {"path": "~/.config/c", "kind": "added"}])
         self.assertEqual(scripts, 1)
 
+    def test_status_absolute_paths_and_odd_line_breaks(self):
+        home = os.path.expanduser("~")
+        local, pending, _ = state.parse_status("MM %s/.config/a\n M /etc/outside\n" % home)
+        self.assertEqual(local[0]["path"], "~/.config/a")
+        self.assertEqual(pending[0]["path"], "/etc/outside")
+        # U+2028 inside a name is part of the name, not a new row.
+        local, _, _ = state.parse_status("MM a\u2028M  .ssh/id_rsa\n")
+        self.assertEqual([r["path"] for r in local], ["~/a\u2028M  .ssh/id_rsa"])
+
+    def test_sendable_only_through_folders_that_are_ours_alone(self):
+        home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, home)
+        os.makedirs(os.path.join(home, "mine")); os.makedirs(os.path.join(home, "shared/in"))
+        os.chmod(os.path.join(home, "shared"), 0o777)
+        with unittest.mock.patch.dict(os.environ, {"HOME": home}):
+            self.assertTrue(state.sendable("~/mine/f"))
+            self.assertFalse(state.sendable("~/shared/in/f"))
+            self.assertFalse(state.sendable("/etc/passwd"))
+            self.assertFalse(state.sendable("~/mine/a\nb"))
+
     def test_status_path_with_spaces(self):
         local, _, _ = state.parse_status("MM Рабочий стол/x y\n")
         self.assertEqual(local[0]["path"], "~/Рабочий стол/x y")
@@ -69,6 +89,10 @@ class Parsers(unittest.TestCase):
         self.assertEqual(state.short_remote("git@github.com:me/dotfiles.git"), "me/dotfiles")
         self.assertEqual(state.short_remote("https://gitlab.com/group/dots"), "group/dots")
         self.assertEqual(state.short_remote(""), "")
+        at_in_password = "https://user:p" + "@" + "ss@host.example/me/repo.git"
+        self.assertEqual(state.short_remote(at_in_password), "me/repo")
+        self.assertEqual(state.short_remote("https://host.example/me/repo/?token=a/b"), "me/repo")
+        self.assertEqual(state.short_remote("https://host.example/me/repo/"), "me/repo")
 
     def test_ahead_behind(self):
         self.assertEqual(state.count_ahead_behind("2\t5\n"), (2, 5))
@@ -85,6 +109,15 @@ class Shared(unittest.TestCase):
             now = os.path.getmtime(path)
             self.assertEqual(state.read_shared(now + 1), {"ok": True, "local": []})
             self.assertIsNone(state.read_shared(now + state.SHARED_FOR + 1))
+
+    def test_a_shared_folder_others_can_enter_or_a_link_is_not_used(self):
+        with tempfile.TemporaryDirectory() as run, unittest.mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": run}):
+            os.mkdir(os.path.join(run, "ismoil-dotfiles"), 0o755)
+            self.assertIsNone(state.shared_path())
+        with tempfile.TemporaryDirectory() as run, tempfile.TemporaryDirectory() as elsewhere, \
+             unittest.mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": run}):
+            os.symlink(elsewhere, os.path.join(run, "ismoil-dotfiles"))
+            self.assertIsNone(state.shared_path())
 
     def test_errors_are_not_shared(self):
         with tempfile.TemporaryDirectory() as run, unittest.mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": run}):
@@ -115,7 +148,7 @@ class TwoMachines(unittest.TestCase):
         env = {k: v for k, v in os.environ.items() if not k.startswith("XDG_") and not k.startswith("GIT_")}
         # No mise shims (they break with another HOME), so no gitleaks either.
         env["PATH"] = ":".join(p for p in env["PATH"].split(":") if "mise" not in p)
-        env.update(HOME=home, CHEZMOI=self.cz, LANG="C", DOTFILES_LANG="en",
+        env.update(HOME=home, CHEZMOI=self.cz, LANG="C", DOTFILES_LANG="en", DOTFILES_UNSCANNED_OK="1",
                    GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
         return env
 
@@ -264,6 +297,42 @@ class TwoMachines(unittest.TestCase):
             self.assertEqual(f.read(), "x=1\n", "the repo keeps the old content")
         with open(os.path.join(src, "dot_cfg/mine.conf")) as f:
             self.assertEqual(f.read(), "y=2\n")
+
+    def test_without_gitleaks_an_edit_is_sent_only_on_a_yes(self):
+        a = self.a
+        src = self.setup_watched()
+        self.write(a, ".cfg/app.conf", "x=1\n")
+        self.sh(a, self.cz, "add", os.path.join(a, ".cfg/app.conf"))
+        self.sh(a, ACTIONS, "save")
+        self.write(a, ".cfg/app.conf", "x=2\n")
+        env = self.env(a)
+        del env["DOTFILES_UNSCANNED_OK"]
+        no = subprocess.run([ACTIONS, "save"], env=env, cwd=a, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+        self.assertNotEqual(no.returncode, 0)
+        with open(os.path.join(src, "dot_cfg/app.conf")) as f:
+            self.assertEqual(f.read(), "x=1\n")
+        yes = subprocess.run([ACTIONS, "save"], env=env, cwd=a, capture_output=True, text=True, input="y\n")
+        self.assertEqual(yes.returncode, 0, yes.stdout + yes.stderr)
+        with open(os.path.join(src, "dot_cfg/app.conf")) as f:
+            self.assertEqual(f.read(), "x=2\n")
+
+    def test_the_home_folder_itself_is_never_a_watched_folder(self):
+        a = self.a
+        src = self.setup_watched()
+        self.write(src, ".chezmoidata/dotfiles.toml", '[dotfiles]\nwatch = ["~", "/", "~/.skills"]\n')
+        self.write(a, ".private-note", "mine\n")
+        self.sh(a, ACTIONS, "save")
+        self.assertNotIn(".private-note", self.managed(a))
+
+    def test_a_blocked_file_is_told_apart_before_sending(self):
+        a = self.a
+        self.setup_watched()
+        self.write(a, ".skills/shared/SKILL.md", "x\n")
+        os.chmod(os.path.join(a, ".skills/shared"), 0o777)
+        rows = {r["path"]: r["kind"] for r in self.read(a)["local"]}
+        self.assertEqual(rows.get("~/.skills/shared"), "blocked")
+        self.sh(a, ACTIONS, "save")
+        self.assertNotIn(".skills/shared", self.managed(a))
 
     def test_a_new_file_with_a_secret_is_refused_and_nothing_is_pushed(self):
         a = self.a

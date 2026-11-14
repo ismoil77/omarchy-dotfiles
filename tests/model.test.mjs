@@ -65,8 +65,6 @@ test("state texts in both languages", () => {
   assert.equal(M.stateText(ru, ok({ behind: 5 })), "Из репо: 5 обновлений")
   assert.equal(M.stateText(en, ok({ ahead: 1, behind: 1 })), "Not sent: 1 change · from the repo: 1 update")
   assert.equal(M.stateText(ru, M.failure("nosource")), "У chezmoi ещё нет репо: сделай chezmoi init")
-  assert.equal(M.hint(ru, ok({ ahead: 1, behind: 1 })), "Сначала «Отправить», потом «Применить»")
-  assert.equal(M.hint(en, M.failure("busy")), "")
 })
 
 test("ago", () => {
@@ -127,4 +125,11 @@ test("header figure, chip and home paths", () => {
   assert.equal(M.chipText(en, ok({})), "saved")
   assert.equal(M.expandHome("~/.config/x", "/home/me"), "/home/me/.config/x")
   assert.equal(M.expandHome("/etc/x", "/home/me"), "/etc/x")
+})
+
+test("a blocked file is listed but not counted as to send", () => {
+  const s = ok({ local: [{ path: "~/a", kind: "modified" }, { path: "~/shared/b", kind: "blocked" }] })
+  assert.equal(M.barLabel(s), "↑1")
+  assert.equal(M.kindLabel(ru, "blocked"), "общая папка: не отправится")
+  assert.equal(M.mode(ok({ local: [{ path: "~/shared/b", kind: "blocked" }] })), "ok")
 })
