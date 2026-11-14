@@ -22,6 +22,27 @@ buttons run in a floating terminal, so chezmoi can still ask you things:
 `Enter` runs the stressed button, `r` checks again, a click on a file row shows its change. Right
 click on the bar icon checks again.
 
+## Install
+
+```bash
+omarchy plugin add https://github.com/ismoil77/omarchy-dotfiles.git --enable
+```
+
+(or copy the folder to `~/.config/omarchy/plugins/ismoil.dotfiles/`, run
+`omarchy-shell shell rescanPlugins`, then `omarchy plugin enable ismoil.dotfiles`).
+
+Plugins run unsandboxed inside the shell — read the code first; it is small. The widget only reads
+(`chezmoi status`, `chezmoi unmanaged`, `git fetch`/`log`); it writes nothing until you press a
+button, and every button runs in a terminal you can see. Update with `omarchy plugin update ismoil.dotfiles`.
+
+## Remove
+
+```bash
+omarchy plugin remove ismoil.dotfiles
+```
+
+Nothing else is left behind: the widget keeps no cache. Your chezmoi setup and repo are untouched.
+
 ## Needs
 
 - `chezmoi` with a source repo that has a remote (`chezmoi init`, `git remote add origin …`)
